@@ -7,9 +7,10 @@ interface VideoRowProps {
   videos: VideoCardProps[];
   showSeeAll?: boolean;
   onSeeAllClick?: () => void;
+  onVideoClick?: (videoId: string) => void;
 }
 
-export function VideoRow({ title, videos, showSeeAll = true, onSeeAllClick }: VideoRowProps) {
+export function VideoRow({ title, videos, showSeeAll = true, onSeeAllClick, onVideoClick }: VideoRowProps) {
   return (
     <section className="space-y-4">
       {/* Section Header */}
@@ -39,7 +40,7 @@ export function VideoRow({ title, videos, showSeeAll = true, onSeeAllClick }: Vi
               transition={{ delay: index * 0.1, duration: 0.4 }}
               className="flex-shrink-0 w-[160px] md:w-[180px]"
             >
-              <VideoCard {...video} />
+              <VideoCard {...video} onVideoClick={onVideoClick} />
             </motion.div>
           ))}
         </div>
