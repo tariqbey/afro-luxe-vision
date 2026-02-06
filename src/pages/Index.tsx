@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { TopNav } from "@/components/TopNav";
 import { BottomNav } from "@/components/BottomNav";
@@ -21,6 +22,7 @@ import thumb6 from "@/assets/thumb-6.jpg";
 import { trendingVideos, continueWatching, newReleases, allVideos, popularCreators } from "@/data/videos";
 
 const Index = () => {
+  const navigate = useNavigate();
   const [activeChannel, setActiveChannel] = useState<Channel>("all");
   const [activeTab, setActiveTab] = useState("home");
   const [coinBalance, setCoinBalance] = useState(1250);
@@ -132,7 +134,11 @@ const Index = () => {
         </AnimatePresence>
       </main>
 
-      <BottomNav activeTab={activeTab} onTabChange={setActiveTab} notificationCount={3} />
+      <BottomNav activeTab={activeTab} onTabChange={(tab) => {
+        if (tab === "profile") navigate("/profile");
+        else if (tab === "discover") navigate("/discover");
+        else setActiveTab(tab);
+      }} notificationCount={3} />
 
       {/* Modals */}
       <CoinPurchaseModal isOpen={showCoinModal} onClose={() => setShowCoinModal(false)} currentBalance={coinBalance} />
