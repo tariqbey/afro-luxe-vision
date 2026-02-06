@@ -100,7 +100,7 @@ export function VideoPlayer({ videos, initialIndex = 0, isOpen, onClose }: Video
     >
       {/* Swipeable Video Area */}
       <motion.div
-        className="absolute inset-0"
+        className="absolute inset-0 touch-none"
         drag="y"
         dragConstraints={{ top: 0, bottom: 0 }}
         dragElastic={0.3}
@@ -165,7 +165,21 @@ export function VideoPlayer({ videos, initialIndex = 0, isOpen, onClose }: Video
         </AnimatePresence>
       </motion.div>
 
-      {/* Top Controls */}
+      {/* Always-visible back button */}
+      <div className="absolute top-0 left-0 right-0 z-40 pt-safe">
+        <div className="flex items-center justify-between px-4 h-14">
+          <motion.button
+            onClick={(e) => { e.stopPropagation(); onClose(); }}
+            className="w-10 h-10 rounded-full bg-deep-space/60 backdrop-blur-md flex items-center justify-center"
+            whileTap={{ scale: 0.9 }}
+          >
+            <ChevronLeft className="w-6 h-6 text-pure-white" />
+          </motion.button>
+          <div />
+        </div>
+      </div>
+
+      {/* Top Controls (mute/more) */}
       <AnimatePresence>
         {showControls && (
           <motion.div
@@ -174,15 +188,7 @@ export function VideoPlayer({ videos, initialIndex = 0, isOpen, onClose }: Video
             exit={{ opacity: 0, y: -20 }}
             className="absolute top-0 left-0 right-0 z-30 pt-safe"
           >
-            <div className="flex items-center justify-between px-4 h-14">
-              <motion.button
-                onClick={onClose}
-                className="w-10 h-10 rounded-full bg-deep-space/40 backdrop-blur-sm flex items-center justify-center"
-                whileTap={{ scale: 0.9 }}
-              >
-                <ChevronLeft className="w-6 h-6 text-pure-white" />
-              </motion.button>
-
+            <div className="flex items-center justify-end px-4 h-14">
               <div className="flex items-center gap-3">
                 <motion.button
                   onClick={() => setIsMuted(!isMuted)}
