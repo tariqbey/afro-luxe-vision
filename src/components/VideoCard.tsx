@@ -19,9 +19,11 @@ export interface VideoCardProps {
   progress?: number;
   isVerified?: boolean;
   channel?: "afropunk" | "codeblack" | "lol" | "essence";
+  onVideoClick?: (videoId: string) => void;
 }
 
 export function VideoCard({
+  id,
   title,
   thumbnail,
   creator,
@@ -36,6 +38,7 @@ export function VideoCard({
   progress,
   isVerified = false,
   channel,
+  onVideoClick,
 }: VideoCardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
@@ -54,6 +57,7 @@ export function VideoCard({
       onHoverEnd={() => setIsHovered(false)}
       whileHover={{ scale: 1.02 }}
       transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+      onClick={() => onVideoClick?.(id)}
     >
       {/* Thumbnail Container */}
       <div
