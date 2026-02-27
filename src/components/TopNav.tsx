@@ -17,8 +17,8 @@ export function TopNav({ coinBalance, onSearchClick, onCoinsClick }: TopNavProps
       <div className="flex items-center justify-between h-16 bg-gradient-to-b from-deep-space via-deep-space/80 to-transparent">
         {/* Logo */}
         <div className="flex items-center gap-1">
-          <span className="font-display text-2xl text-pure-white tracking-tight">BLK</span>
-          <span className="font-display text-2xl text-gradient-hero tracking-tight">TOPIA</span>
+          <span className="font-display text-2xl text-pure-white tracking-tight">The </span>
+          <span className="font-display text-2xl text-gradient-hero tracking-tight">FIIIX</span>
         </div>
 
         {/* Right Actions */}
