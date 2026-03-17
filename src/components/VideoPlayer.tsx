@@ -365,7 +365,7 @@ export function VideoPlayer({ videos, initialIndex = 0, isOpen, onClose }: Video
               <div className="px-4 py-6 space-y-4 overflow-y-auto" style={{ maxHeight: "50vh" }}>
                 {[
                   { user: "CultureKing", text: "This episode hit different 🔥🔥🔥", time: "2h", likes: "1.2K" },
-                  { user: "QueenVibes", text: "Best series on The FIIIX hands down", time: "4h", likes: "892" },
+                  { user: "QueenVibes", text: "Best series on Dopamine hands down", time: "4h", likes: "892" },
                   { user: "MarcusTheCreator", text: "The cinematography is insane", time: "6h", likes: "456" },
                 ].map((comment, i) => (
                   <div key={i} className="flex gap-3">
