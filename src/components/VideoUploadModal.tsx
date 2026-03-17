@@ -243,7 +243,7 @@ export function VideoUploadModal({ isOpen, onClose }: VideoUploadModalProps) {
                     <Check className="w-10 h-10 text-pure-white" />
                   </motion.div>
                   <h3 className="font-display text-2xl text-pure-white">Published!</h3>
-                  <p className="text-sm text-chrome-silver/70 text-center">Your video is now live on The FIIIX</p>
+                  <p className="text-sm text-chrome-silver/70 text-center">Your video is now live on Dopamine</p>
                 </motion.div>
               )}
             </div>
