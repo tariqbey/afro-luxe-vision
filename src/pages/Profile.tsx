@@ -105,11 +105,11 @@ const Profile = () => {
             <Edit3 className="w-4 h-4" /> Edit Profile
           </motion.button>
           <motion.button
-            onClick={() => setShowUploadModal(true)}
+            onClick={() => navigate("/admin")}
             className="flex-1 py-3 rounded-xl bg-gradient-button font-body font-semibold text-sm text-pure-white flex items-center justify-center gap-2"
             whileTap={{ scale: 0.97 }}
           >
-            <Upload className="w-4 h-4" /> Upload
+            <Film className="w-4 h-4" /> Admin Studio
           </motion.button>
           <motion.button
             className="w-12 py-3 rounded-xl bg-obsidian border border-chrome-silver/10 flex items-center justify-center"
