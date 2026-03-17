@@ -15,7 +15,7 @@ const buttonVariants = cva(
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "text-chrome-silver hover:text-neon-magenta hover:bg-transparent",
         link: "text-primary underline-offset-4 hover:underline",
-        // BLKTOPIA Premium Variants
+        // Dopamine Premium Variants
         hero: "bg-gradient-to-r from-neon-magenta to-electric-violet text-pure-white font-bold uppercase tracking-wide shadow-glow-magenta hover:shadow-[0_0_50px_hsl(338_100%_50%_/_0.6)] hover:scale-[1.02]",
         gold: "bg-gradient-to-r from-liquid-gold to-codeblack-gold text-deep-space font-bold uppercase tracking-wide shadow-glow-gold hover:shadow-[0_0_50px_hsl(42_100%_58%_/_0.6)] hover:scale-[1.02]",
         glass: "bg-obsidian/80 backdrop-blur-xl border border-chrome-silver/20 text-chrome-silver hover:bg-obsidian hover:border-electric-violet/50",
