@@ -143,8 +143,47 @@ const Profile = () => {
           )}
         </div>
 
+        {/* Subscription */}
+        <div className="mt-5 rounded-2xl border border-electric-violet/30 bg-gradient-to-br from-obsidian to-deep-space p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">Dopamine Unlimited</p>
+              {platform.isSubscriber ? (
+                <p className="mt-1 text-sm text-pure-white font-medium">
+                  👑 Active
+                  {platform.subscriptionEnd && (
+                    <span className="text-muted-foreground font-normal">
+                      {" "}· renews {new Date(platform.subscriptionEnd).toLocaleDateString()}
+                    </span>
+                  )}
+                </p>
+              ) : (
+                <p className="mt-1 text-sm text-chrome-silver/80">
+                  Every episode, every series — <span className="text-pure-white font-bold">$5.99/mo</span>
+                </p>
+              )}
+            </div>
+            {platform.isSubscriber ? (
+              <button
+                onClick={() => platform.manageSubscription()}
+                className="px-4 py-2.5 rounded-xl border border-chrome-silver/20 text-xs font-medium text-chrome-silver flex-shrink-0"
+              >
+                Manage
+              </button>
+            ) : (
+              <motion.button
+                onClick={() => platform.subscribe()}
+                className="px-5 py-2.5 rounded-xl bg-gradient-button font-display text-sm text-pure-white uppercase tracking-wide flex-shrink-0"
+                whileTap={{ scale: 0.95 }}
+              >
+                Subscribe
+              </motion.button>
+            )}
+          </div>
+        </div>
+
         {/* Bread Wallet */}
-        <div className="mt-5 rounded-2xl border border-liquid-gold/25 bg-gradient-to-br from-obsidian to-deep-space p-5">
+        <div className="mt-3 rounded-2xl border border-liquid-gold/25 bg-gradient-to-br from-obsidian to-deep-space p-5">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-wide">Bread Wallet</p>

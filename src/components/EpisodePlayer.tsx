@@ -23,7 +23,7 @@ interface EpisodePlayerProps {
 export function EpisodePlayer({
   series, episodes, initialEpisodeNumber = 1, isOpen, onClose,
 }: EpisodePlayerProps) {
-  const { isWatchable, unlockEpisode, breadBalance, saveProgress, savedIds, toggleSaved } = usePlatform();
+  const { isWatchable, unlockEpisode, breadBalance, saveProgress, savedIds, toggleSaved, subscribe, demoMode } = usePlatform();
 
   const startIdx = Math.max(0, episodes.findIndex((e) => e.episodeNumber === initialEpisodeNumber));
   const [currentIndex, setCurrentIndex] = useState(startIdx === -1 ? 0 : startIdx);
@@ -38,6 +38,7 @@ export function EpisodePlayer({
   const [pendingIndex, setPendingIndex] = useState<number | null>(null);
   const [showBreadModal, setShowBreadModal] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
+  const [subscribing, setSubscribing] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const controlsTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -59,8 +60,21 @@ export function EpisodePlayer({
   useEffect(() => {
     if (isOpen) {
       const idx = Math.max(0, episodes.findIndex((e) => e.episodeNumber === initialEpisodeNumber));
-      setCurrentIndex(idx === -1 ? 0 : idx);
-      setIsPlaying(true);
+      const target = episodes[idx];
+      // The resume point must pass the gate too — a saved position can land on
+      // an episode that's since been locked (free window changed, sub lapsed).
+      if (target && !isWatchable(target, series)) {
+        let lastWatchableIdx = 0;
+        for (let i = idx - 1; i >= 0; i--) {
+          if (isWatchable(episodes[i], series)) { lastWatchableIdx = i; break; }
+        }
+        setCurrentIndex(lastWatchableIdx);
+        setPendingIndex(idx); // opens the paywall
+        setIsPlaying(false);
+      } else {
+        setCurrentIndex(idx);
+        setIsPlaying(true);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, initialEpisodeNumber]);
@@ -103,6 +117,27 @@ export function EpisodePlayer({
       setShowControls(true); // end of series
     }
   }, [currentIndex, episodes.length, goToIndex]);
+
+  const handleSubscribe = useCallback(async () => {
+    if (subscribing) return;
+    setSubscribing(true);
+    const result = await subscribe();
+    setSubscribing(false);
+    if (result.ok && demoMode && pendingIndex !== null) {
+      // demo mode activates instantly — resume playback right away
+      const idx = pendingIndex;
+      setPendingIndex(null);
+      setCurrentIndex(idx);
+      setProgress(0);
+      setIsPlaying(true);
+      toast({ title: "Dopamine Unlimited active 👑", description: "Demo mode — no card charged." });
+    } else if (!result.ok && result.error === "not_authenticated") {
+      toast({ title: "Sign in to subscribe", description: "Create an account so your subscription follows you." });
+    } else if (!result.ok) {
+      toast({ title: "Checkout unavailable", description: "Please try again in a moment.", variant: "destructive" });
+    }
+    // real mode redirects to Stripe Checkout
+  }, [subscribe, subscribing, demoMode, pendingIndex]);
 
   const handleUnlock = useCallback(async () => {
     if (!pendingEpisode || unlocking) return;
@@ -215,12 +250,12 @@ export function EpisodePlayer({
         onDragEnd={handleDragEnd}
         style={{ y: dragY, opacity: backgroundOpacity }}
       >
-        <AnimatePresence mode="wait">
+        {/* key remounts the whole block per episode — no AnimatePresence here,
+            it can strand a stale <video> with a stale onEnded closure */}
           <motion.div
             key={currentEpisode.id}
             initial={{ opacity: 0, scale: 1.05 }}
             animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.3 }}
             className="absolute inset-0"
             onClick={handleTap}
@@ -249,7 +284,6 @@ export function EpisodePlayer({
             )}
             <div className="absolute inset-0 bg-gradient-to-b from-deep-space/40 via-transparent to-deep-space/80 pointer-events-none" />
           </motion.div>
-        </AnimatePresence>
 
         {/* Double-tap Heart Animation */}
         <AnimatePresence>
@@ -433,8 +467,10 @@ export function EpisodePlayer({
         breadCost={series.episodePrice}
         currentBalance={breadBalance}
         unlocking={unlocking}
+        subscribing={subscribing}
         onUnlock={handleUnlock}
         onBuyBread={() => setShowBreadModal(true)}
+        onSubscribe={handleSubscribe}
       />
 
       <BreadPurchaseModal

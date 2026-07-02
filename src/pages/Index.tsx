@@ -32,15 +32,23 @@ const Index = () => {
 
   // Stripe checkout return
   useEffect(() => {
-    const result = searchParams.get("bread_purchase");
-    if (!result) return;
-    if (result === "success") {
+    const bread = searchParams.get("bread_purchase");
+    const sub = searchParams.get("subscription");
+    if (!bread && !sub) return;
+    if (bread === "success") {
       toast({ title: "Bread is in your wallet 🍞", description: "Payment received. Enjoy the show." });
       refreshWallet();
-    } else if (result === "cancelled") {
+    } else if (bread === "cancelled") {
       toast({ title: "Purchase cancelled", description: "No charge was made." });
     }
+    if (sub === "success") {
+      toast({ title: "Welcome to Dopamine Unlimited 👑", description: "Every episode of every series is yours. Enjoy." });
+      refreshWallet();
+    } else if (sub === "cancelled") {
+      toast({ title: "Subscription cancelled", description: "No charge was made." });
+    }
     searchParams.delete("bread_purchase");
+    searchParams.delete("subscription");
     setSearchParams(searchParams, { replace: true });
   }, [searchParams, setSearchParams, refreshWallet]);
 

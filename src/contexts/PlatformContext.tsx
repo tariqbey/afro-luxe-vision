@@ -10,6 +10,7 @@ const LS = {
   unlocks: "dopamine.demo.unlocks",
   progress: "dopamine.demo.progress",
   saved: "dopamine.saved",
+  subscriber: "dopamine.demo.subscriber",
 };
 
 interface UnlockResult {
@@ -29,6 +30,11 @@ interface PlatformContextValue {
   /** Series in the user's My List. DB-backed when signed in, device-local otherwise. */
   savedIds: Set<string>;
   toggleSaved: (seriesId: string) => Promise<void>;
+  /** Dopamine Unlimited — $5.99/mo, every episode of every series. */
+  isSubscriber: boolean;
+  subscriptionEnd: string | null;
+  subscribe: () => Promise<{ ok: boolean; error?: string }>;
+  manageSubscription: () => Promise<{ ok: boolean; error?: string }>;
   /** Can this episode play right now (free window or already unlocked)? */
   isWatchable: (ep: Episode, series: Series) => boolean;
   unlockEpisode: (ep: Episode, series: Series) => Promise<UnlockResult>;
@@ -67,16 +73,21 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
   const [savedIds, setSavedIds] = useState<Set<string>>(() =>
     new Set(readLocal<string[]>(LS.saved, [])),
   );
+  const [isSubscriber, setIsSubscriber] = useState<boolean>(() =>
+    demoMode ? readLocal(LS.subscriber, false) : false,
+  );
+  const [subscriptionEnd, setSubscriptionEnd] = useState<string | null>(null);
 
   const refreshWallet = useCallback(async () => {
     if (demoMode || !supabase) return;
     const { data: auth } = await supabase.auth.getUser();
     if (!auth.user) return;
-    const [{ data: wallet }, { data: txs }, { data: unlocks }, { data: saves }] = await Promise.all([
+    const [{ data: wallet }, { data: txs }, { data: unlocks }, { data: saves }, { data: sub }] = await Promise.all([
       supabase.from("wallets").select("balance").eq("user_id", auth.user.id).single(),
       supabase.from("bread_transactions").select("*").order("created_at", { ascending: false }).limit(25),
       supabase.from("unlocks").select("episode_id"),
       supabase.from("saved_series").select("series_id"),
+      supabase.from("subscriptions").select("status, current_period_end").eq("user_id", auth.user.id).maybeSingle(),
     ]);
     if (wallet) setBreadBalance(wallet.balance);
     if (txs) {
@@ -86,7 +97,42 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
     }
     if (unlocks) setUnlockedIds(new Set(unlocks.map((u) => u.episode_id as string)));
     if (saves) setSavedIds(new Set(saves.map((s) => s.series_id as string)));
+    setIsSubscriber(Boolean(
+      sub && sub.status === "active" &&
+      (!sub.current_period_end || new Date(sub.current_period_end) > new Date()),
+    ));
+    setSubscriptionEnd(sub?.current_period_end ?? null);
   }, [demoMode]);
+
+  const subscribe = useCallback(async () => {
+    if (demoMode) {
+      localStorage.setItem(LS.subscriber, "true");
+      setIsSubscriber(true);
+      return { ok: true };
+    }
+    if (!supabase || !user) return { ok: false, error: "not_authenticated" };
+    const { data, error } = await supabase.functions.invoke("create-checkout", {
+      body: { plan: "monthly", returnUrl: window.location.origin },
+    });
+    if (error || !data?.url) return { ok: false, error: "checkout_failed" };
+    window.location.href = data.url;
+    return { ok: true };
+  }, [demoMode, user]);
+
+  const manageSubscription = useCallback(async () => {
+    if (demoMode) {
+      localStorage.setItem(LS.subscriber, "false");
+      setIsSubscriber(false);
+      return { ok: true };
+    }
+    if (!supabase || !user) return { ok: false, error: "not_authenticated" };
+    const { data, error } = await supabase.functions.invoke("create-checkout", {
+      body: { action: "portal", returnUrl: window.location.origin },
+    });
+    if (error || !data?.url) return { ok: false, error: "portal_failed" };
+    window.location.href = data.url;
+    return { ok: true };
+  }, [demoMode, user]);
 
   const toggleSaved = useCallback(async (seriesId: string) => {
     const isSaved = savedIds.has(seriesId);
@@ -129,8 +175,8 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
 
   const isWatchable = useCallback(
     (ep: Episode, series: Series) =>
-      ep.episodeNumber <= series.freeEpisodes || unlockedIds.has(ep.id),
-    [unlockedIds],
+      isSubscriber || ep.episodeNumber <= series.freeEpisodes || unlockedIds.has(ep.id),
+    [unlockedIds, isSubscriber],
   );
 
   const unlockEpisode = useCallback(
@@ -213,7 +259,7 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
     <PlatformContext.Provider
       value={{
         demoMode, loading, user, username, isAdmin, breadBalance, transactions, unlockedIds,
-        savedIds, toggleSaved,
+        savedIds, toggleSaved, isSubscriber, subscriptionEnd, subscribe, manageSubscription,
         isWatchable, unlockEpisode, buyBread, refreshWallet, saveProgress, getProgress, signOut,
       }}
     >
