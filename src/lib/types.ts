@@ -16,6 +16,8 @@ export interface Series {
   createdAt: string;
   /** Set by admin — series appears in the home hero, newest first */
   featuredAt: string | null;
+  /** Free-to-watch trailer, playable from the hero and series card */
+  trailerUrl: string | null;
 }
 
 export interface Episode {

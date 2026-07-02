@@ -349,9 +349,11 @@ export function EpisodePlayer({
           </h3>
           <div className="flex items-center gap-2">
             <span className="inline-block px-2.5 py-1 rounded-md bg-electric-violet/30 text-xs font-medium text-electric-violet">
-              Episode {currentEpisode.episodeNumber} of {episodes.length}
+              {currentEpisode.episodeNumber === 0
+                ? "Trailer"
+                : `Episode ${currentEpisode.episodeNumber} of ${episodes.length}`}
             </span>
-            {isFreeWindow && (
+            {isFreeWindow && currentEpisode.episodeNumber > 0 && (
               <span className="inline-block px-2.5 py-1 rounded-md bg-liquid-gold/20 text-xs font-medium text-liquid-gold">
                 Free
               </span>

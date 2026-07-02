@@ -44,6 +44,7 @@ export const demoSeries: Series[] = [
     status: "published",
     createdAt: new Date("2026-06-01").toISOString(),
     featuredAt: new Date("2026-06-29").toISOString(),
+    trailerUrl: "/demo/clip-1.mp4",
   },
   {
     id: "demo-golden-hour",
@@ -58,6 +59,7 @@ export const demoSeries: Series[] = [
     status: "published",
     createdAt: new Date("2026-06-15").toISOString(),
     featuredAt: null,
+    trailerUrl: null,
   },
   {
     id: "demo-operation-freedom",
@@ -72,6 +74,7 @@ export const demoSeries: Series[] = [
     status: "published",
     createdAt: new Date("2026-06-20").toISOString(),
     featuredAt: new Date("2026-06-30").toISOString(),
+    trailerUrl: null,
   },
   {
     id: "demo-lol-live",
@@ -86,6 +89,7 @@ export const demoSeries: Series[] = [
     status: "published",
     createdAt: new Date("2026-06-25").toISOString(),
     featuredAt: null,
+    trailerUrl: null,
   },
   {
     id: "demo-boss-moves",
@@ -100,6 +104,7 @@ export const demoSeries: Series[] = [
     status: "published",
     createdAt: new Date("2026-06-28").toISOString(),
     featuredAt: null,
+    trailerUrl: null,
   },
   {
     id: "demo-neon-dreams",
@@ -114,6 +119,7 @@ export const demoSeries: Series[] = [
     status: "published",
     createdAt: new Date("2026-06-30").toISOString(),
     featuredAt: null,
+    trailerUrl: null,
   },
 ];
 

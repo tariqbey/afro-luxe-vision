@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Film, Upload, ImageIcon, Trash2, Eye, EyeOff, Loader2, Star,
+  Clapperboard, ListOrdered, ChevronUp, ChevronDown, ChevronRight,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "@/hooks/use-toast";
@@ -17,7 +18,15 @@ interface AdminSeries {
   episode_price: number;
   free_episodes: number;
   featured_at: string | null;
+  trailer_url: string | null;
   episodeCount: number;
+}
+
+interface AdminEpisode {
+  id: string;
+  episode_number: number;
+  title: string | null;
+  duration_seconds: number | null;
 }
 
 const safeName = (name: string) => name.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -26,7 +35,7 @@ async function fetchAdminSeries(): Promise<AdminSeries[]> {
   if (!supabase) return [];
   const { data, error } = await supabase
     .from("series")
-    .select("id, title, status, channel, cover_url, episode_price, free_episodes, featured_at, episodes(count)")
+    .select("id, title, status, channel, cover_url, episode_price, free_episodes, featured_at, trailer_url, episodes(count)")
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []).map((s) => ({
@@ -78,8 +87,25 @@ function SeriesCard({ series, onChanged }: { series: AdminSeries; onChanged: () 
   const [uploadNote, setUploadNote] = useState("");
   const [price, setPrice] = useState(series.episode_price);
   const [free, setFree] = useState(series.free_episodes);
+  const [showEpisodes, setShowEpisodes] = useState(false);
   const episodesInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
+  const trailerInputRef = useRef<HTMLInputElement>(null);
+  const queryClient = useQueryClient();
+
+  const { data: episodes } = useQuery({
+    queryKey: ["admin-episodes", series.id],
+    queryFn: async (): Promise<AdminEpisode[]> => {
+      const { data, error } = await supabase!
+        .from("episodes")
+        .select("id, episode_number, title, duration_seconds")
+        .eq("series_id", series.id)
+        .order("episode_number");
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: showEpisodes,
+  });
 
   const run = async (label: string, fn: () => Promise<void>) => {
     if (busy || !supabase) return;
@@ -138,6 +164,69 @@ function SeriesCard({ series, onChanged }: { series: AdminSeries; onChanged: () 
       await supabase!.from("episodes").update({ thumbnail_url: coverUrl }).eq("series_id", series.id);
       toast({ title: "Cover updated", description: series.title });
     });
+
+  const addTrailer = (file: File) =>
+    run("Add trailer", async () => {
+      const path = `${series.id}/trailer-${Date.now()}-${safeName(file.name)}`;
+      const { error } = await supabase!.storage.from("videos").upload(path, file);
+      if (error) throw error;
+      const url = supabase!.storage.from("videos").getPublicUrl(path).data.publicUrl;
+      const { error: uErr } = await supabase!.from("series").update({ trailer_url: url }).eq("id", series.id);
+      if (uErr) throw uErr;
+      toast({ title: "Trailer added 🎬", description: `${series.title} — plays free from the home hero.` });
+    });
+
+  const removeTrailer = () =>
+    run("Remove trailer", async () => {
+      const { error } = await supabase!.from("series").update({ trailer_url: null }).eq("id", series.id);
+      if (error) throw error;
+      toast({ title: "Trailer removed", description: series.title });
+    });
+
+  /** Swap episode_number with the neighbor above/below (3-step to dodge the unique constraint). */
+  const moveEpisode = (ep: AdminEpisode, direction: "up" | "down") => {
+    const list = episodes ?? [];
+    const idx = list.findIndex((e) => e.id === ep.id);
+    const neighbor = list[direction === "up" ? idx - 1 : idx + 1];
+    if (!neighbor) return;
+    run("Reorder", async () => {
+      const TEMP = 1000000;
+      let r = await supabase!.from("episodes").update({ episode_number: TEMP }).eq("id", ep.id);
+      if (r.error) throw r.error;
+      r = await supabase!.from("episodes").update({ episode_number: ep.episode_number }).eq("id", neighbor.id);
+      if (r.error) throw r.error;
+      r = await supabase!.from("episodes").update({ episode_number: neighbor.episode_number }).eq("id", ep.id);
+      if (r.error) throw r.error;
+      queryClient.invalidateQueries({ queryKey: ["admin-episodes", series.id] });
+    });
+  };
+
+  const renameEpisode = (ep: AdminEpisode, title: string) => {
+    if (title.trim() === (ep.title ?? "")) return;
+    run("Rename", async () => {
+      const { error } = await supabase!.from("episodes").update({ title: title.trim() || null }).eq("id", ep.id);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["admin-episodes", series.id] });
+    });
+  };
+
+  const deleteEpisode = (ep: AdminEpisode) => {
+    if (!window.confirm(`Delete "${ep.title ?? `Episode ${ep.episode_number}`}"? Later episodes shift down to close the gap.`)) return;
+    run("Delete episode", async () => {
+      const { error } = await supabase!.from("episodes").delete().eq("id", ep.id);
+      if (error) throw error;
+      // close the gap so the free-window math stays honest
+      const rest = (episodes ?? []).filter((e) => e.episode_number > ep.episode_number);
+      for (const e of rest) {
+        const { error: sErr } = await supabase!
+          .from("episodes")
+          .update({ episode_number: e.episode_number - 1 })
+          .eq("id", e.id);
+        if (sErr) throw sErr;
+      }
+      queryClient.invalidateQueries({ queryKey: ["admin-episodes", series.id] });
+    });
+  };
 
   const toggleFeatured = () =>
     run(series.featured_at ? "Unfeature" : "Feature", async () => {
@@ -253,6 +342,10 @@ function SeriesCard({ series, onChanged }: { series: AdminSeries; onChanged: () 
           ref={coverInputRef} type="file" accept="image/*" className="hidden"
           onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) changeCover(f); }}
         />
+        <input
+          ref={trailerInputRef} type="file" accept="video/*" className="hidden"
+          onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) addTrailer(f); }}
+        />
 
         <ActionButton
           icon={<Upload className="w-3.5 h-3.5" />}
@@ -266,6 +359,25 @@ function SeriesCard({ series, onChanged }: { series: AdminSeries; onChanged: () 
           label="Change Cover"
           onClick={() => coverInputRef.current?.click()}
           busy={busy === "Change cover"}
+        />
+        <ActionButton
+          icon={<Clapperboard className="w-3.5 h-3.5" />}
+          label={series.trailer_url ? "Replace Trailer" : "Add Trailer"}
+          onClick={() => trailerInputRef.current?.click()}
+          busy={busy === "Add trailer"}
+        />
+        {series.trailer_url && (
+          <ActionButton
+            icon={<Trash2 className="w-3.5 h-3.5" />}
+            label="Remove Trailer"
+            onClick={removeTrailer}
+            busy={busy === "Remove trailer"}
+          />
+        )}
+        <ActionButton
+          icon={<ListOrdered className="w-3.5 h-3.5" />}
+          label={showEpisodes ? "Hide Episodes" : "Episodes"}
+          onClick={() => setShowEpisodes((v) => !v)}
         />
         <ActionButton
           icon={series.status === "published" ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
@@ -287,6 +399,63 @@ function SeriesCard({ series, onChanged }: { series: AdminSeries; onChanged: () 
           danger
         />
       </div>
+
+      {/* Episode manager */}
+      {showEpisodes && (
+        <div className="border-t border-chrome-silver/10 px-4 py-3 space-y-1.5">
+          {!episodes && <Loader2 className="w-4 h-4 text-electric-violet animate-spin" />}
+          {episodes?.length === 0 && (
+            <p className="text-xs text-muted-foreground">No episodes yet — use Add Episodes above.</p>
+          )}
+          {episodes?.map((ep, i) => (
+            <div key={ep.id} className="flex items-center gap-2 rounded-xl bg-deep-space px-3 py-2">
+              <span className="w-7 text-center font-accent font-bold text-sm text-electric-violet tabular-nums flex-shrink-0">
+                {ep.episode_number}
+              </span>
+              <input
+                defaultValue={ep.title ?? ""}
+                placeholder={`Episode ${ep.episode_number}`}
+                onBlur={(e) => renameEpisode(ep, e.target.value)}
+                className="flex-1 min-w-0 bg-transparent text-sm text-chrome-silver outline-none border-b border-transparent focus:border-electric-violet/50 transition-colors"
+              />
+              {ep.duration_seconds != null && (
+                <span className="text-[10px] text-muted-foreground tabular-nums flex-shrink-0">
+                  {Math.floor(ep.duration_seconds / 60)}:{String(ep.duration_seconds % 60).padStart(2, "0")}
+                </span>
+              )}
+              <div className="flex items-center gap-0.5 flex-shrink-0">
+                <button
+                  onClick={() => moveEpisode(ep, "up")}
+                  disabled={i === 0 || !!busy}
+                  className="w-7 h-7 rounded-lg flex items-center justify-center text-chrome-silver disabled:opacity-25 hover:bg-obsidian"
+                >
+                  <ChevronUp className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => moveEpisode(ep, "down")}
+                  disabled={i === (episodes?.length ?? 0) - 1 || !!busy}
+                  className="w-7 h-7 rounded-lg flex items-center justify-center text-chrome-silver disabled:opacity-25 hover:bg-obsidian"
+                >
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => deleteEpisode(ep)}
+                  disabled={!!busy}
+                  className="w-7 h-7 rounded-lg flex items-center justify-center text-destructive/70 hover:bg-obsidian disabled:opacity-25"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
+          {(episodes?.length ?? 0) > 0 && (
+            <p className="text-[10px] text-muted-foreground pt-1 flex items-center gap-1">
+              <ChevronRight className="w-3 h-3" />
+              Order = play order. Episodes 1–{series.free_episodes} are free; viewers pay {series.episode_price} 🍞 from episode {series.free_episodes + 1}.
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -28,6 +28,7 @@ const Index = () => {
   const [activeTab, setActiveTab] = useState("home");
   const [showBreadModal, setShowBreadModal] = useState(false);
   const [playingSeries, setPlayingSeries] = useState<Series | null>(null);
+  const [trailerSeries, setTrailerSeries] = useState<Series | null>(null);
 
   // Stripe checkout return
   useEffect(() => {
@@ -87,8 +88,14 @@ const Index = () => {
       description: s.description ?? "",
       backgroundImage: s.coverUrl ?? "",
       channel: s.channel ?? undefined,
+      hasTrailer: Boolean(s.trailerUrl),
     }));
   }, [seriesList, newReleases, episodesBySeries]);
+
+  const openTrailer = (seriesId: string) => {
+    const s = seriesList.find((x) => x.id === seriesId);
+    if (s?.trailerUrl) setTrailerSeries(s);
+  };
 
   const openSeries = (seriesId: string) => {
     const s = seriesList.find((x) => x.id === seriesId);
@@ -104,7 +111,7 @@ const Index = () => {
 
       <main className="pb-28">
         {heroSlides.length > 0 ? (
-          <FeaturedHero slides={heroSlides} onWatch={openSeries} />
+          <FeaturedHero slides={heroSlides} onWatch={openSeries} onTrailer={openTrailer} />
         ) : (
           <FeaturedHero
             slides={[{
@@ -189,6 +196,23 @@ const Index = () => {
             initialEpisodeNumber={getProgress(playingSeries.id)?.episodeNumber ?? 1}
             isOpen
             onClose={() => setPlayingSeries(null)}
+          />
+        )}
+        {trailerSeries && (
+          <EpisodePlayer
+            series={trailerSeries}
+            episodes={[{
+              id: `${trailerSeries.id}-trailer`,
+              seriesId: trailerSeries.id,
+              episodeNumber: 0,
+              title: "Trailer",
+              videoUrl: trailerSeries.trailerUrl,
+              thumbnailUrl: trailerSeries.coverUrl,
+              durationSeconds: null,
+            }]}
+            initialEpisodeNumber={0}
+            isOpen
+            onClose={() => setTrailerSeries(null)}
           />
         )}
       </AnimatePresence>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Play, Plus, Info } from "lucide-react";
+import { Play, Plus, Clapperboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export interface FeaturedSlide {
@@ -10,11 +10,13 @@ export interface FeaturedSlide {
   description: string;
   backgroundImage: string;
   channel?: "afropunk" | "codeblack" | "lol" | "essence";
+  hasTrailer?: boolean;
 }
 
 interface FeaturedHeroProps {
   slides: FeaturedSlide[];
   onWatch?: (seriesId: string) => void;
+  onTrailer?: (seriesId: string) => void;
   rotateMs?: number;
 }
 
@@ -25,7 +27,7 @@ const channelColors = {
   essence: "from-essence-rose/30 via-essence-champagne/20",
 };
 
-export function FeaturedHero({ slides, onWatch, rotateMs = 7000 }: FeaturedHeroProps) {
+export function FeaturedHero({ slides, onWatch, onTrailer, rotateMs = 7000 }: FeaturedHeroProps) {
   const [index, setIndex] = useState(0);
   const slide = slides[Math.min(index, slides.length - 1)];
 
@@ -95,12 +97,15 @@ export function FeaturedHero({ slides, onWatch, rotateMs = 7000 }: FeaturedHeroP
                   <Play className="w-5 h-5 fill-current" />
                   WATCH NOW
                 </Button>
+                {slide.hasTrailer && (
+                  <Button variant="glass" size="lg" className="gap-2" onClick={() => onTrailer?.(slide.id)}>
+                    <Clapperboard className="w-5 h-5" />
+                    TRAILER
+                  </Button>
+                )}
                 <Button variant="glass" size="lg" className="gap-2">
                   <Plus className="w-5 h-5" />
                   MY LIST
-                </Button>
-                <Button variant="icon" size="icon-lg">
-                  <Info className="w-5 h-5" />
                 </Button>
               </div>
             </motion.div>

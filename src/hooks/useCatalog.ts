@@ -40,6 +40,7 @@ async function fetchCatalog(): Promise<Catalog> {
     status: s.status,
     createdAt: s.created_at,
     featuredAt: s.featured_at ?? null,
+    trailerUrl: s.trailer_url ?? null,
   }));
 
   const episodesBySeries: Record<string, Episode[]> = {};
