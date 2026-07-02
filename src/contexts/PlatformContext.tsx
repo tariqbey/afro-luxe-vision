@@ -9,6 +9,7 @@ const LS = {
   bread: "dopamine.demo.bread",
   unlocks: "dopamine.demo.unlocks",
   progress: "dopamine.demo.progress",
+  saved: "dopamine.saved",
 };
 
 interface UnlockResult {
@@ -25,6 +26,9 @@ interface PlatformContextValue {
   breadBalance: number;
   transactions: BreadTransaction[];
   unlockedIds: Set<string>;
+  /** Series in the user's My List. DB-backed when signed in, device-local otherwise. */
+  savedIds: Set<string>;
+  toggleSaved: (seriesId: string) => Promise<void>;
   /** Can this episode play right now (free window or already unlocked)? */
   isWatchable: (ep: Episode, series: Series) => boolean;
   unlockEpisode: (ep: Episode, series: Series) => Promise<UnlockResult>;
@@ -60,15 +64,19 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
   const [unlockedIds, setUnlockedIds] = useState<Set<string>>(() =>
     demoMode ? new Set(readLocal<string[]>(LS.unlocks, [])) : new Set(),
   );
+  const [savedIds, setSavedIds] = useState<Set<string>>(() =>
+    new Set(readLocal<string[]>(LS.saved, [])),
+  );
 
   const refreshWallet = useCallback(async () => {
     if (demoMode || !supabase) return;
     const { data: auth } = await supabase.auth.getUser();
     if (!auth.user) return;
-    const [{ data: wallet }, { data: txs }, { data: unlocks }] = await Promise.all([
+    const [{ data: wallet }, { data: txs }, { data: unlocks }, { data: saves }] = await Promise.all([
       supabase.from("wallets").select("balance").eq("user_id", auth.user.id).single(),
       supabase.from("bread_transactions").select("*").order("created_at", { ascending: false }).limit(25),
       supabase.from("unlocks").select("episode_id"),
+      supabase.from("saved_series").select("series_id"),
     ]);
     if (wallet) setBreadBalance(wallet.balance);
     if (txs) {
@@ -77,7 +85,25 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
       })));
     }
     if (unlocks) setUnlockedIds(new Set(unlocks.map((u) => u.episode_id as string)));
+    if (saves) setSavedIds(new Set(saves.map((s) => s.series_id as string)));
   }, [demoMode]);
+
+  const toggleSaved = useCallback(async (seriesId: string) => {
+    const isSaved = savedIds.has(seriesId);
+    const next = new Set(savedIds);
+    if (isSaved) next.delete(seriesId); else next.add(seriesId);
+    setSavedIds(next);
+    if (!demoMode && supabase && user) {
+      if (isSaved) {
+        await supabase.from("saved_series").delete()
+          .eq("user_id", user.id).eq("series_id", seriesId);
+      } else {
+        await supabase.from("saved_series").upsert({ user_id: user.id, series_id: seriesId });
+      }
+    } else {
+      localStorage.setItem(LS.saved, JSON.stringify([...next]));
+    }
+  }, [savedIds, demoMode, user]);
 
   useEffect(() => {
     if (demoMode || !supabase) return;
@@ -187,6 +213,7 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
     <PlatformContext.Provider
       value={{
         demoMode, loading, user, username, isAdmin, breadBalance, transactions, unlockedIds,
+        savedIds, toggleSaved,
         isWatchable, unlockEpisode, buyBread, refreshWallet, saveProgress, getProgress, signOut,
       }}
     >

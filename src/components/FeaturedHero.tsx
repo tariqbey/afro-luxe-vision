@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Play, Plus, Clapperboard } from "lucide-react";
+import { Play, Plus, Check, Clapperboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export interface FeaturedSlide {
@@ -11,12 +11,14 @@ export interface FeaturedSlide {
   backgroundImage: string;
   channel?: "afropunk" | "codeblack" | "lol" | "essence";
   hasTrailer?: boolean;
+  saved?: boolean;
 }
 
 interface FeaturedHeroProps {
   slides: FeaturedSlide[];
   onWatch?: (seriesId: string) => void;
   onTrailer?: (seriesId: string) => void;
+  onSave?: (seriesId: string) => void;
   rotateMs?: number;
 }
 
@@ -32,7 +34,7 @@ const channelColors = {
  * All content (title, description, actions) lives below the artwork,
  * bridged by a short fade at the image's bottom edge.
  */
-export function FeaturedHero({ slides, onWatch, onTrailer, rotateMs = 7000 }: FeaturedHeroProps) {
+export function FeaturedHero({ slides, onWatch, onTrailer, onSave, rotateMs = 7000 }: FeaturedHeroProps) {
   const [index, setIndex] = useState(0);
   const slide = slides[Math.min(index, slides.length - 1)];
 
@@ -109,9 +111,9 @@ export function FeaturedHero({ slides, onWatch, onTrailer, rotateMs = 7000 }: Fe
                     TRAILER
                   </Button>
                 )}
-                <Button variant="glass" size="lg" className="gap-2">
-                  <Plus className="w-5 h-5" />
-                  MY LIST
+                <Button variant="glass" size="lg" className="gap-2" onClick={() => onSave?.(slide.id)}>
+                  {slide.saved ? <Check className="w-5 h-5 text-liquid-gold" /> : <Plus className="w-5 h-5" />}
+                  {slide.saved ? "SAVED" : "MY LIST"}
                 </Button>
               </div>
             </motion.div>

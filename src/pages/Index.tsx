@@ -22,7 +22,7 @@ const Index = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: catalog, isLoading } = useCatalog();
-  const { breadBalance, refreshWallet, getProgress } = usePlatform();
+  const { breadBalance, refreshWallet, getProgress, savedIds, toggleSaved } = usePlatform();
 
   const [activeChannel, setActiveChannel] = useState<Channel>("all");
   const [activeTab, setActiveTab] = useState("home");
@@ -46,6 +46,17 @@ const Index = () => {
 
   const seriesList = catalog?.seriesList ?? [];
   const episodesBySeries = catalog?.episodesBySeries ?? {};
+
+  // Shared links (/?s=<seriesId>) open the series directly
+  useEffect(() => {
+    const sharedId = searchParams.get("s");
+    if (!sharedId || seriesList.length === 0) return;
+    const s = seriesList.find((x) => x.id === sharedId);
+    if (s) setPlayingSeries(s);
+    searchParams.delete("s");
+    setSearchParams(searchParams, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seriesList.length]);
 
   const toCard = (s: Series): VideoCardProps => ({
     id: s.id,
@@ -89,8 +100,9 @@ const Index = () => {
       backgroundImage: s.coverUrl ?? "",
       channel: s.channel ?? undefined,
       hasTrailer: Boolean(s.trailerUrl),
+      saved: savedIds.has(s.id),
     }));
-  }, [seriesList, newReleases, episodesBySeries]);
+  }, [seriesList, newReleases, episodesBySeries, savedIds]);
 
   const openTrailer = (seriesId: string) => {
     const s = seriesList.find((x) => x.id === seriesId);
@@ -111,7 +123,7 @@ const Index = () => {
 
       <main className="pb-28">
         {heroSlides.length > 0 ? (
-          <FeaturedHero slides={heroSlides} onWatch={openSeries} onTrailer={openTrailer} />
+          <FeaturedHero slides={heroSlides} onWatch={openSeries} onTrailer={openTrailer} onSave={toggleSaved} />
         ) : (
           <FeaturedHero
             slides={[{

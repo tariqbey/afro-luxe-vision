@@ -9,6 +9,8 @@ import { Series, Episode } from "@/lib/types";
 import { usePlatform } from "@/contexts/PlatformContext";
 import { PremiumUnlockModal } from "./PremiumUnlockModal";
 import { BreadPurchaseModal } from "./BreadPurchaseModal";
+import { CommentsSheet } from "./CommentsSheet";
+import { toast } from "@/hooks/use-toast";
 
 interface EpisodePlayerProps {
   series: Series;
@@ -21,7 +23,7 @@ interface EpisodePlayerProps {
 export function EpisodePlayer({
   series, episodes, initialEpisodeNumber = 1, isOpen, onClose,
 }: EpisodePlayerProps) {
-  const { isWatchable, unlockEpisode, breadBalance, saveProgress } = usePlatform();
+  const { isWatchable, unlockEpisode, breadBalance, saveProgress, savedIds, toggleSaved } = usePlatform();
 
   const startIdx = Math.max(0, episodes.findIndex((e) => e.episodeNumber === initialEpisodeNumber));
   const [currentIndex, setCurrentIndex] = useState(startIdx === -1 ? 0 : startIdx);
@@ -29,7 +31,7 @@ export function EpisodePlayer({
   const [isMuted, setIsMuted] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [isLiked, setIsLiked] = useState<Record<string, boolean>>({});
-  const [isBookmarked, setIsBookmarked] = useState<Record<string, boolean>>({});
+  const [showComments, setShowComments] = useState(false);
   const [showHeartBurst, setShowHeartBurst] = useState(false);
   const [heartPosition, setHeartPosition] = useState({ x: 0, y: 0 });
   const [progress, setProgress] = useState(0);
@@ -165,11 +167,37 @@ export function EpisodePlayer({
 
   const backgroundOpacity = useTransform(dragY, [-200, 0, 200], [0.5, 1, 0.5]);
 
+  const handleShare = async () => {
+    const url = `${window.location.origin}/?s=${series.id}`;
+    const text = `${series.title} on Dopamine — first episodes free 🍞`;
+    // 1) native share sheet
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: series.title, text, url });
+        return;
+      }
+    } catch (err) {
+      if ((err as Error)?.name === "AbortError") return; // user closed the sheet
+    }
+    // 2) clipboard
+    try {
+      await navigator.clipboard.writeText(url);
+      toast({ title: "Link copied 🔗", description: "Share it anywhere — the series opens straight from the link." });
+      return;
+    } catch {
+      // 3) last resort: show the link so it can be copied by hand
+      toast({ title: "Share this link", description: url });
+    }
+  };
+
   if (!isOpen || !currentEpisode) return null;
 
   const videoLiked = isLiked[currentEpisode.id] || false;
-  const videoBookmarked = isBookmarked[currentEpisode.id] || false;
+  const seriesSaved = savedIds.has(series.id);
   const isFreeWindow = currentEpisode.episodeNumber <= series.freeEpisodes;
+  const episodeLabel = currentEpisode.episodeNumber === 0
+    ? "Trailer"
+    : `Episode ${currentEpisode.episodeNumber}`;
 
   return (
     <motion.div
@@ -318,23 +346,29 @@ export function EpisodePlayer({
           <span className="text-xs font-accent font-medium text-pure-white">Like</span>
         </motion.button>
 
-        <motion.button className="flex flex-col items-center gap-1" whileTap={{ scale: 0.85 }}>
+        <motion.button
+          onClick={() => setShowComments(true)}
+          className="flex flex-col items-center gap-1"
+          whileTap={{ scale: 0.85 }}
+        >
           <MessageCircle className="w-8 h-8 text-pure-white drop-shadow-lg" />
           <span className="text-xs font-accent font-medium text-pure-white">Chat</span>
         </motion.button>
 
-        <motion.button className="flex flex-col items-center gap-1" whileTap={{ scale: 0.85 }}>
+        <motion.button onClick={handleShare} className="flex flex-col items-center gap-1" whileTap={{ scale: 0.85 }}>
           <Share2 className="w-7 h-7 text-pure-white drop-shadow-lg" />
           <span className="text-xs font-accent font-medium text-pure-white">Share</span>
         </motion.button>
 
         <motion.button
-          onClick={() => setIsBookmarked((prev) => ({ ...prev, [currentEpisode.id]: !videoBookmarked }))}
+          onClick={() => toggleSaved(series.id)}
           className="flex flex-col items-center gap-1"
           whileTap={{ scale: 0.85 }}
         >
-          <Bookmark className={cn("w-7 h-7 drop-shadow-lg", videoBookmarked ? "text-liquid-gold fill-liquid-gold" : "text-pure-white")} />
-          <span className="text-xs font-accent font-medium text-pure-white">Save</span>
+          <Bookmark className={cn("w-7 h-7 drop-shadow-lg", seriesSaved ? "text-liquid-gold fill-liquid-gold" : "text-pure-white")} />
+          <span className="text-xs font-accent font-medium text-pure-white">
+            {seriesSaved ? "Saved" : "Save"}
+          </span>
         </motion.button>
       </div>
 
@@ -407,6 +441,13 @@ export function EpisodePlayer({
         isOpen={showBreadModal}
         onClose={() => setShowBreadModal(false)}
         currentBalance={breadBalance}
+      />
+
+      <CommentsSheet
+        episodeId={currentEpisode.id}
+        episodeLabel={episodeLabel}
+        isOpen={showComments}
+        onClose={() => setShowComments(false)}
       />
     </motion.div>
   );

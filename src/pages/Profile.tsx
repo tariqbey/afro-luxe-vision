@@ -7,6 +7,7 @@ import { BottomNav } from "@/components/BottomNav";
 import { VideoUploadModal } from "@/components/VideoUploadModal";
 import { BreadPurchaseModal } from "@/components/BreadPurchaseModal";
 import { usePlatform } from "@/contexts/PlatformContext";
+import { useCatalog } from "@/hooks/useCatalog";
 import { allVideos } from "@/data/videos";
 
 import thumb1 from "@/assets/thumb-1.jpg";
@@ -35,10 +36,24 @@ const Profile = () => {
     { label: "Likes", value: "89K" },
   ];
 
+  const { data: catalog } = useCatalog();
+  const savedSeries: VideoCardProps[] = (catalog?.seriesList ?? [])
+    .filter((s) => platform.savedIds.has(s.id))
+    .map((s) => ({
+      id: s.id,
+      title: s.title,
+      thumbnail: s.coverUrl ?? "",
+      creator: s.creatorName ?? "Dopamine",
+      duration: `${catalog?.episodesBySeries[s.id]?.length ?? 0} eps`,
+      views: "",
+      likes: "",
+      channel: s.channel ?? undefined,
+    }));
+
   const tabContent: Record<string, VideoCardProps[]> = {
     videos: myVideos,
     liked: likedVideos,
-    saved: allVideos.slice(4, 10),
+    saved: savedSeries,
   };
 
   const handleSaveEdit = () => {
@@ -227,12 +242,21 @@ const Profile = () => {
             exit={{ opacity: 0, y: -10 }}
             className="grid grid-cols-3 gap-2"
           >
+            {activeTab === "saved" && tabContent.saved.length === 0 && (
+              <p className="col-span-3 text-center text-sm text-muted-foreground py-10">
+                Nothing saved yet — tap Save in the player or MY LIST on the home page.
+              </p>
+            )}
             {tabContent[activeTab].map((video) => (
               <motion.div
                 key={video.id}
                 className="relative aspect-[9/16] rounded-lg overflow-hidden bg-obsidian"
                 whileTap={{ scale: 0.97 }}
-                onClick={() => navigate(`/creator/${video.creator.replace(/\s/g, "").toLowerCase()}`)}
+                onClick={() =>
+                  activeTab === "saved"
+                    ? navigate(`/?s=${video.id}`)
+                    : navigate(`/creator/${video.creator.replace(/\s/g, "").toLowerCase()}`)
+                }
               >
                 <img src={video.thumbnail} alt={video.title} className="w-full h-full object-cover" />
                 <div className="absolute inset-0 video-overlay" />
