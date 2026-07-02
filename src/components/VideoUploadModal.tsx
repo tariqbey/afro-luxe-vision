@@ -47,10 +47,19 @@ export function VideoUploadModal({ isOpen, onClose }: VideoUploadModalProps) {
 
   const resetAndClose = () => { reset(); onClose(); };
 
-  const canPublish = title.trim() && selectedChannel && videoFiles.length > 0;
+  // storage keys choke on chars like # ? % — keep names boring
+  const safeName = (name: string) => name.replace(/[^a-zA-Z0-9._-]/g, "_");
 
-  const handlePublish = async () => {
-    if (!canPublish) return;
+  const canSaveDraft = Boolean(title.trim() && selectedChannel);
+  const canPublish = canSaveDraft && videoFiles.length > 0;
+  const missing = [
+    !title.trim() && "a title",
+    !selectedChannel && "a channel",
+    videoFiles.length === 0 && "episode videos",
+  ].filter(Boolean).join(", ");
+
+  const save = async (publish: boolean) => {
+    if (publish ? !canPublish : !canSaveDraft) return;
     if (demoMode || !supabase || !user) {
       toast({
         title: demoMode ? "Demo mode" : "Sign in required",
@@ -82,7 +91,7 @@ export function VideoUploadModal({ isOpen, onClose }: VideoUploadModalProps) {
       // 2. Cover image
       let coverUrl: string | null = null;
       if (coverFile) {
-        const path = `${series.id}/cover-${coverFile.name}`;
+        const path = `${series.id}/cover-${safeName(coverFile.name)}`;
         const { error } = await supabase.storage.from("covers").upload(path, coverFile);
         if (error) throw error;
         coverUrl = supabase.storage.from("covers").getPublicUrl(path).data.publicUrl;
@@ -91,7 +100,7 @@ export function VideoUploadModal({ isOpen, onClose }: VideoUploadModalProps) {
       // 3. Episodes, in selection order
       for (let i = 0; i < videoFiles.length; i++) {
         const file = videoFiles[i];
-        const path = `${series.id}/ep-${i + 1}-${file.name}`;
+        const path = `${series.id}/ep-${i + 1}-${safeName(file.name)}`;
         const { error: upErr } = await supabase.storage.from("videos").upload(path, file);
         if (upErr) throw upErr;
         const videoUrl = supabase.storage.from("videos").getPublicUrl(path).data.publicUrl;
@@ -108,16 +117,21 @@ export function VideoUploadModal({ isOpen, onClose }: VideoUploadModalProps) {
         setUploadedCount(i + 1);
       }
 
-      // 4. Publish
+      // 4. Save cover; publish only when episodes exist
       const { error: pubErr } = await supabase
         .from("series")
-        .update({ cover_url: coverUrl, status: "published" })
+        .update({ cover_url: coverUrl, status: publish ? "published" : "draft" })
         .eq("id", series.id);
       if (pubErr) throw pubErr;
 
       queryClient.invalidateQueries({ queryKey: ["catalog"] });
-      setStep("success");
-      setTimeout(resetAndClose, 2000);
+      if (publish) {
+        setStep("success");
+        setTimeout(resetAndClose, 2000);
+      } else {
+        toast({ title: "Draft saved", description: `"${title.trim()}" is saved with its cover art. Add episodes and publish when you're ready.` });
+        resetAndClose();
+      }
     } catch (err) {
       console.error(err);
       toast({
@@ -218,10 +232,25 @@ export function VideoUploadModal({ isOpen, onClose }: VideoUploadModalProps) {
                   />
                   <button
                     onClick={() => coverInputRef.current?.click()}
-                    className="w-full py-3 rounded-xl bg-deep-space border border-chrome-silver/10 font-body font-medium text-sm text-chrome-silver flex items-center justify-center gap-2"
+                    className="w-full rounded-xl bg-deep-space border border-chrome-silver/10 font-body font-medium text-sm text-chrome-silver flex items-center justify-center gap-3 overflow-hidden"
                   >
-                    <ImageIcon className="w-4 h-4" />
-                    {coverFile ? coverFile.name : "Add cover image"}
+                    {coverFile ? (
+                      <div className="flex items-center gap-3 w-full p-2">
+                        <img
+                          src={URL.createObjectURL(coverFile)}
+                          alt="Cover preview"
+                          className="w-14 h-20 rounded-lg object-cover flex-shrink-0"
+                        />
+                        <div className="text-left flex-1 min-w-0">
+                          <p className="text-chrome-silver truncate">{coverFile.name}</p>
+                          <p className="text-xs text-liquid-gold">Cover selected — tap to change</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="flex items-center gap-2 py-3">
+                        <ImageIcon className="w-4 h-4" /> Add cover image
+                      </span>
+                    )}
                   </button>
 
                   <div>
@@ -290,14 +319,29 @@ export function VideoUploadModal({ isOpen, onClose }: VideoUploadModalProps) {
                     </div>
                   </div>
 
-                  <motion.button
-                    onClick={handlePublish}
-                    disabled={!canPublish}
-                    className="w-full py-3.5 rounded-xl bg-gradient-button font-body font-bold text-pure-white disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                    whileTap={{ scale: 0.97 }}
-                  >
-                    Publish Series <ChevronRight className="w-4 h-4" />
-                  </motion.button>
+                  <div className="space-y-2">
+                    <motion.button
+                      onClick={() => save(true)}
+                      disabled={!canPublish}
+                      className="w-full py-3.5 rounded-xl bg-gradient-button font-body font-bold text-pure-white disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      whileTap={{ scale: 0.97 }}
+                    >
+                      Publish Series <ChevronRight className="w-4 h-4" />
+                    </motion.button>
+                    <motion.button
+                      onClick={() => save(false)}
+                      disabled={!canSaveDraft}
+                      className="w-full py-3 rounded-xl bg-deep-space border border-chrome-silver/15 font-body font-medium text-sm text-chrome-silver disabled:opacity-40 disabled:cursor-not-allowed"
+                      whileTap={{ scale: 0.97 }}
+                    >
+                      Save as Draft (no episodes yet)
+                    </motion.button>
+                    {!canPublish && (
+                      <p className="text-center text-xs text-muted-foreground">
+                        To publish, add {missing}.
+                      </p>
+                    )}
+                  </div>
                 </motion.div>
               )}
 
