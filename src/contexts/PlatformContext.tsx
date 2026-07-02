@@ -21,6 +21,7 @@ interface PlatformContextValue {
   loading: boolean;
   user: User | null;
   username: string | null;
+  isAdmin: boolean;
   breadBalance: number;
   transactions: BreadTransaction[];
   unlockedIds: Set<string>;
@@ -51,6 +52,7 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(!demoMode);
   const [user, setUser] = useState<User | null>(null);
   const [username, setUsername] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [breadBalance, setBreadBalance] = useState<number>(() =>
     demoMode ? readLocal(LS.bread, 100) : 0,
   );
@@ -91,8 +93,11 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (demoMode || !supabase || !user) return;
-    supabase.from("profiles").select("username").eq("id", user.id).single()
-      .then(({ data }) => setUsername(data?.username ?? null));
+    supabase.from("profiles").select("username, is_admin, is_creator").eq("id", user.id).single()
+      .then(({ data }) => {
+        setUsername(data?.username ?? null);
+        setIsAdmin(Boolean(data?.is_admin || data?.is_creator));
+      });
     refreshWallet();
   }, [demoMode, user, refreshWallet]);
 
@@ -173,6 +178,7 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
     if (supabase) await supabase.auth.signOut();
     setUser(null);
     setUsername(null);
+    setIsAdmin(false);
     setBreadBalance(demoMode ? readLocal(LS.bread, 100) : 0);
     setUnlockedIds(demoMode ? new Set(readLocal<string[]>(LS.unlocks, [])) : new Set());
   }, [demoMode]);
@@ -180,7 +186,7 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
   return (
     <PlatformContext.Provider
       value={{
-        demoMode, loading, user, username, breadBalance, transactions, unlockedIds,
+        demoMode, loading, user, username, isAdmin, breadBalance, transactions, unlockedIds,
         isWatchable, unlockEpisode, buyBread, refreshWallet, saveProgress, getProgress, signOut,
       }}
     >
