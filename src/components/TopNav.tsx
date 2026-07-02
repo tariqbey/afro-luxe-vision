@@ -1,13 +1,13 @@
 import { motion } from "framer-motion";
-import { Search, Coins } from "lucide-react";
+import { Search } from "lucide-react";
 
 interface TopNavProps {
-  coinBalance: number;
+  breadBalance: number;
   onSearchClick?: () => void;
-  onCoinsClick?: () => void;
+  onBreadClick?: () => void;
 }
 
-export function TopNav({ coinBalance, onSearchClick, onCoinsClick }: TopNavProps) {
+export function TopNav({ breadBalance, onSearchClick, onBreadClick }: TopNavProps) {
   return (
     <motion.header
       initial={{ opacity: 0, y: -20 }}
@@ -31,16 +31,16 @@ export function TopNav({ coinBalance, onSearchClick, onCoinsClick }: TopNavProps
             <Search className="w-5 h-5 text-chrome-silver" />
           </motion.button>
 
-          {/* Coin Balance */}
+          {/* Bread Wallet */}
           <motion.button
-            onClick={onCoinsClick}
+            onClick={onBreadClick}
             className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-gold"
             whileTap={{ scale: 0.95 }}
             whileHover={{ scale: 1.02 }}
           >
-            <Coins className="w-4 h-4 text-deep-space" />
+            <span className="text-sm">🍞</span>
             <span className="font-accent font-bold text-sm text-deep-space tabular-nums">
-              {coinBalance.toLocaleString()}
+              {breadBalance.toLocaleString()}
             </span>
           </motion.button>
         </div>

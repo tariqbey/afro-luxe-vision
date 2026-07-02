@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { TopNav } from "@/components/TopNav";
 import { BottomNav } from "@/components/BottomNav";
@@ -7,48 +7,83 @@ import { ChannelSwitcher, Channel } from "@/components/ChannelSwitcher";
 import { FeaturedHero } from "@/components/FeaturedHero";
 import { VideoRow } from "@/components/VideoRow";
 import { VideoCardProps } from "@/components/VideoCard";
-import { CoinPurchaseModal } from "@/components/CoinPurchaseModal";
-import { PremiumUnlockModal } from "@/components/PremiumUnlockModal";
-import { VideoPlayer } from "@/components/VideoPlayer";
+import { BreadPurchaseModal } from "@/components/BreadPurchaseModal";
+import { EpisodePlayer } from "@/components/EpisodePlayer";
+import { useCatalog } from "@/hooks/useCatalog";
+import { usePlatform } from "@/contexts/PlatformContext";
+import { Series } from "@/lib/types";
+import { toast } from "@/hooks/use-toast";
 
 import heroFeatured from "@/assets/hero-featured.jpg";
-import thumb1 from "@/assets/thumb-1.jpg";
-import thumb2 from "@/assets/thumb-2.jpg";
-import thumb3 from "@/assets/thumb-3.jpg";
-import thumb4 from "@/assets/thumb-4.jpg";
-import thumb5 from "@/assets/thumb-5.jpg";
-import thumb6 from "@/assets/thumb-6.jpg";
 
-import { trendingVideos, continueWatching, newReleases, allVideos, popularCreators } from "@/data/videos";
+const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
 
 const Index = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { data: catalog, isLoading } = useCatalog();
+  const { breadBalance, refreshWallet, getProgress } = usePlatform();
+
   const [activeChannel, setActiveChannel] = useState<Channel>("all");
   const [activeTab, setActiveTab] = useState("home");
-  const [coinBalance, setCoinBalance] = useState(1250);
-  const [showCoinModal, setShowCoinModal] = useState(false);
-  const [showUnlockModal, setShowUnlockModal] = useState(false);
-  const [showVideoPlayer, setShowVideoPlayer] = useState(false);
-  const [playerVideoIndex, setPlayerVideoIndex] = useState(0);
+  const [showBreadModal, setShowBreadModal] = useState(false);
+  const [playingSeries, setPlayingSeries] = useState<Series | null>(null);
 
-  const filterByChannel = (videos: VideoCardProps[]) => {
-    if (activeChannel === "all") return videos;
-    return videos.filter((v) => v.channel === activeChannel);
-  };
-
-  const handleVideoClick = (videoId: string) => {
-    const index = allVideos.findIndex((v) => v.id === videoId);
-    if (index !== -1) {
-      setPlayerVideoIndex(index);
-      setShowVideoPlayer(true);
+  // Stripe checkout return
+  useEffect(() => {
+    const result = searchParams.get("bread_purchase");
+    if (!result) return;
+    if (result === "success") {
+      toast({ title: "Bread is in your wallet 🍞", description: "Payment received. Enjoy the show." });
+      refreshWallet();
+    } else if (result === "cancelled") {
+      toast({ title: "Purchase cancelled", description: "No charge was made." });
     }
+    searchParams.delete("bread_purchase");
+    setSearchParams(searchParams, { replace: true });
+  }, [searchParams, setSearchParams, refreshWallet]);
+
+  const seriesList = catalog?.seriesList ?? [];
+  const episodesBySeries = catalog?.episodesBySeries ?? {};
+
+  const toCard = (s: Series): VideoCardProps => ({
+    id: s.id,
+    title: s.title,
+    thumbnail: s.coverUrl ?? "",
+    creator: s.creatorName ?? "Creator",
+    duration: `${episodesBySeries[s.id]?.length ?? 0} eps`,
+    views: "",
+    likes: "",
+    isNew: Date.now() - new Date(s.createdAt).getTime() < TWO_WEEKS_MS,
+    isVerified: true,
+    channel: s.channel ?? undefined,
+  });
+
+  const filterByChannel = (list: Series[]) =>
+    activeChannel === "all" ? list : list.filter((s) => s.channel === activeChannel);
+
+  const continueWatchingSeries = useMemo(
+    () => seriesList.filter((s) => getProgress(s.id) !== null),
+    [seriesList, getProgress],
+  );
+
+  const newReleases = useMemo(
+    () => [...seriesList].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    ).slice(0, 6),
+    [seriesList],
+  );
+
+  const openSeries = (seriesId: string) => {
+    const s = seriesList.find((x) => x.id === seriesId);
+    if (s) setPlayingSeries(s);
   };
 
   return (
     <div className="min-h-screen bg-deep-space grain-overlay">
       <TopNav
-        coinBalance={coinBalance}
-        onCoinsClick={() => setShowCoinModal(true)}
+        breadBalance={breadBalance}
+        onBreadClick={() => setShowBreadModal(true)}
       />
 
       <main className="pb-28">
@@ -76,60 +111,37 @@ const Index = () => {
             transition={{ duration: 0.3 }}
             className="space-y-8"
           >
-            {activeChannel === "all" && continueWatching.length > 0 && (
-              <VideoRow title="Continue Watching" videos={continueWatching} onVideoClick={handleVideoClick} />
+            {isLoading && (
+              <p className="px-4 text-sm text-muted-foreground">Loading series…</p>
+            )}
+
+            {activeChannel === "all" && continueWatchingSeries.length > 0 && (
+              <VideoRow
+                title="Continue Watching"
+                videos={continueWatchingSeries.map((s) => {
+                  const p = getProgress(s.id);
+                  const epCount = episodesBySeries[s.id]?.length ?? 1;
+                  return {
+                    ...toCard(s),
+                    episode: p?.episodeNumber,
+                    progress: p ? Math.round((p.episodeNumber / epCount) * 100) : undefined,
+                  };
+                })}
+                onVideoClick={openSeries}
+              />
             )}
 
             <VideoRow
               title={activeChannel === "all" ? "Trending Now 🔥" : `Trending in ${activeChannel.toUpperCase()}`}
-              videos={filterByChannel(trendingVideos)}
-              onVideoClick={handleVideoClick}
+              videos={filterByChannel(seriesList).map(toCard)}
+              onVideoClick={openSeries}
             />
 
             <VideoRow
               title="New This Week"
-              videos={filterByChannel(newReleases)}
-              onVideoClick={handleVideoClick}
+              videos={filterByChannel(newReleases).map(toCard)}
+              onVideoClick={openSeries}
             />
-
-            {activeChannel === "afropunk" && (
-              <VideoRow title="AFROPUNK Exclusives" videos={trendingVideos.filter((v) => v.channel === "afropunk")} onVideoClick={handleVideoClick} />
-            )}
-            {activeChannel === "codeblack" && (
-              <VideoRow title="CODEBLACK Originals" videos={trendingVideos.filter((v) => v.channel === "codeblack")} onVideoClick={handleVideoClick} />
-            )}
-            {activeChannel === "lol" && (
-              <VideoRow title="LOL! Best of Comedy" videos={trendingVideos.filter((v) => v.channel === "lol")} onVideoClick={handleVideoClick} />
-            )}
-            {activeChannel === "essence" && (
-              <VideoRow title="ESSENCE Lifestyle" videos={trendingVideos.filter((v) => v.channel === "essence")} onVideoClick={handleVideoClick} />
-            )}
-
-            {activeChannel === "all" && (
-              <section className="px-4 space-y-4">
-                <h2 className="text-section text-pure-white">Popular Creators</h2>
-                <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-2">
-                  {popularCreators.map((creator, index) => (
-                    <motion.div
-                      key={creator.name}
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: index * 0.1 }}
-                      className="flex-shrink-0 flex flex-col items-center gap-2"
-                    >
-                      <div className="relative">
-                        <img src={creator.avatar} alt={creator.name} className="w-20 h-20 rounded-full object-cover ring-2 ring-electric-violet" />
-                        <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-neon-magenta flex items-center justify-center">
-                          <span className="text-[10px] text-pure-white font-bold">+</span>
-                        </div>
-                      </div>
-                      <span className="text-sm font-medium text-chrome-silver text-center w-20 truncate">{creator.name}</span>
-                      <span className="text-xs text-muted-foreground">{creator.followers}</span>
-                    </motion.div>
-                  ))}
-                </div>
-              </section>
-            )}
           </motion.div>
         </AnimatePresence>
       </main>
@@ -138,28 +150,22 @@ const Index = () => {
         if (tab === "profile") navigate("/profile");
         else if (tab === "discover") navigate("/discover");
         else setActiveTab(tab);
-      }} notificationCount={3} />
+      }} notificationCount={0} />
 
-      {/* Modals */}
-      <CoinPurchaseModal isOpen={showCoinModal} onClose={() => setShowCoinModal(false)} currentBalance={coinBalance} />
-      <PremiumUnlockModal
-        isOpen={showUnlockModal}
-        onClose={() => setShowUnlockModal(false)}
-        videoTitle="Operation Freedom"
-        thumbnail={thumb4}
-        coinCost={50}
-        currentBalance={coinBalance}
-        onUnlock={() => { setCoinBalance((b) => b - 50); setShowUnlockModal(false); }}
-        onBuyCoins={() => { setShowUnlockModal(false); setShowCoinModal(true); }}
+      <BreadPurchaseModal
+        isOpen={showBreadModal}
+        onClose={() => setShowBreadModal(false)}
+        currentBalance={breadBalance}
       />
 
       <AnimatePresence>
-        {showVideoPlayer && (
-          <VideoPlayer
-            videos={allVideos}
-            initialIndex={playerVideoIndex}
-            isOpen={showVideoPlayer}
-            onClose={() => setShowVideoPlayer(false)}
+        {playingSeries && (
+          <EpisodePlayer
+            series={playingSeries}
+            episodes={episodesBySeries[playingSeries.id] ?? []}
+            initialEpisodeNumber={getProgress(playingSeries.id)?.episodeNumber ?? 1}
+            isOpen
+            onClose={() => setPlayingSeries(null)}
           />
         )}
       </AnimatePresence>

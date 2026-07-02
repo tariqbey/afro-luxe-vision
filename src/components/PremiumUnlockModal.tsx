@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Lock, Coins, Crown, Play } from "lucide-react";
+import { X, Lock, Play, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface PremiumUnlockModalProps {
@@ -7,10 +7,11 @@ interface PremiumUnlockModalProps {
   onClose: () => void;
   videoTitle: string;
   thumbnail: string;
-  coinCost: number;
+  breadCost: number;
   currentBalance: number;
+  unlocking?: boolean;
   onUnlock: () => void;
-  onBuyCoins: () => void;
+  onBuyBread: () => void;
 }
 
 export function PremiumUnlockModal({
@@ -18,12 +19,13 @@ export function PremiumUnlockModal({
   onClose,
   videoTitle,
   thumbnail,
-  coinCost,
+  breadCost,
   currentBalance,
+  unlocking = false,
   onUnlock,
-  onBuyCoins,
+  onBuyBread,
 }: PremiumUnlockModalProps) {
-  const canAfford = currentBalance >= coinCost;
+  const canAfford = currentBalance >= breadCost;
 
   return (
     <AnimatePresence>
@@ -33,7 +35,7 @@ export function PremiumUnlockModal({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] bg-deep-space/80 backdrop-blur-md"
+            className="fixed inset-0 z-[80] bg-deep-space/80 backdrop-blur-md"
             onClick={onClose}
           />
 
@@ -42,7 +44,7 @@ export function PremiumUnlockModal({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: "100%" }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="fixed inset-x-0 bottom-0 z-[61] max-h-[85vh] rounded-t-3xl overflow-hidden bg-obsidian border-t-2 border-electric-violet/30"
+            className="fixed inset-x-0 bottom-0 z-[81] max-h-[85vh] rounded-t-3xl overflow-hidden bg-obsidian border-t-2 border-electric-violet/30"
           >
             {/* Drag Handle */}
             <div className="flex justify-center pt-3 pb-2">
@@ -68,7 +70,7 @@ export function PremiumUnlockModal({
                 >
                   <Lock className="w-10 h-10 text-liquid-gold" />
                 </motion.div>
-                <span className="font-display text-sm text-pure-white uppercase tracking-wide">Premium Content</span>
+                <span className="font-display text-sm text-pure-white uppercase tracking-wide">Locked Episode</span>
               </div>
             </div>
 
@@ -76,27 +78,27 @@ export function PremiumUnlockModal({
             <div className="px-6 pb-8 space-y-5">
               <div className="text-center space-y-2">
                 <h3 className="font-display text-xl text-pure-white uppercase">{videoTitle}</h3>
-                <p className="text-sm text-muted-foreground">Unlock this episode to watch now</p>
+                <p className="text-sm text-muted-foreground">Unlock with Bread to keep watching</p>
               </div>
 
               {/* Cost Display */}
               <div className="flex items-center justify-center gap-3 py-4 rounded-2xl bg-muted/30 border border-border">
                 <div className="flex items-center gap-2">
-                  <Coins className="w-6 h-6 text-liquid-gold" />
-                  <span className="font-accent font-bold text-2xl text-liquid-gold tabular-nums">{coinCost}</span>
+                  <span className="text-2xl">🍞</span>
+                  <span className="font-accent font-bold text-2xl text-liquid-gold tabular-nums">{breadCost}</span>
                 </div>
-                <span className="text-muted-foreground">coins</span>
+                <span className="text-muted-foreground">Bread</span>
               </div>
 
               {/* Balance Info */}
               <div className="text-center text-sm">
-                <span className="text-muted-foreground">Your balance: </span>
+                <span className="text-muted-foreground">Your Bread: </span>
                 <span className={cn("font-accent font-bold", canAfford ? "text-liquid-gold" : "text-destructive")}>
                   {currentBalance.toLocaleString()}
                 </span>
                 {!canAfford && (
                   <span className="text-destructive text-xs block mt-1">
-                    You need {coinCost - currentBalance} more coins
+                    You need {breadCost - currentBalance} more Bread
                   </span>
                 )}
               </div>
@@ -106,30 +108,27 @@ export function PremiumUnlockModal({
                 {canAfford ? (
                   <motion.button
                     onClick={onUnlock}
-                    className="w-full h-14 rounded-2xl bg-gradient-gold font-display text-base text-deep-space uppercase tracking-wide flex items-center justify-center gap-2 shadow-glow-gold"
+                    disabled={unlocking}
+                    className="w-full h-14 rounded-2xl bg-gradient-gold font-display text-base text-deep-space uppercase tracking-wide flex items-center justify-center gap-2 shadow-glow-gold disabled:opacity-60"
                     whileTap={{ scale: 0.98 }}
                   >
-                    <Play className="w-5 h-5 fill-current" />
-                    Unlock & Watch
+                    {unlocking ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <Play className="w-5 h-5 fill-current" />
+                    )}
+                    {unlocking ? "Unlocking..." : "Unlock & Watch"}
                   </motion.button>
                 ) : (
                   <motion.button
-                    onClick={onBuyCoins}
+                    onClick={onBuyBread}
                     className="w-full h-14 rounded-2xl bg-gradient-button font-display text-base text-pure-white uppercase tracking-wide flex items-center justify-center gap-2 shadow-glow-magenta"
                     whileTap={{ scale: 0.98 }}
                   >
-                    <Coins className="w-5 h-5" />
-                    Get Coins
+                    <span className="text-lg">🍞</span>
+                    Get Bread
                   </motion.button>
                 )}
-
-                <motion.button
-                  className="w-full h-12 rounded-2xl border border-chrome-silver/20 text-sm font-medium text-chrome-silver flex items-center justify-center gap-2 hover:border-electric-violet/50 transition-colors"
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <Crown className="w-4 h-4 text-liquid-gold" />
-                  Or Subscribe for Unlimited
-                </motion.button>
               </div>
             </div>
           </motion.div>

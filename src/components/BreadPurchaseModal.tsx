@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Coins, Sparkles, Shield, Zap } from "lucide-react";
+import { X, Sparkles, Shield, Zap, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePlatform } from "@/contexts/PlatformContext";
+import { toast } from "@/hooks/use-toast";
 
-interface CoinPackage {
+interface BreadPackage {
   id: string;
   amount: number;
   bonus: number;
@@ -12,30 +14,43 @@ interface CoinPackage {
   bestValue?: boolean;
 }
 
-const coinPackages: CoinPackage[] = [
+// Display only — real prices are enforced server-side in the
+// create-checkout edge function. Keep the two lists in sync.
+const breadPackages: BreadPackage[] = [
   { id: "starter", amount: 100, bonus: 0, price: "$1.99" },
   { id: "popular", amount: 500, bonus: 50, price: "$7.99", popular: true },
   { id: "premium", amount: 1200, bonus: 200, price: "$14.99" },
   { id: "ultimate", amount: 3000, bonus: 750, price: "$29.99", bestValue: true },
 ];
 
-interface CoinPurchaseModalProps {
+interface BreadPurchaseModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentBalance: number;
 }
 
-export function CoinPurchaseModal({ isOpen, onClose, currentBalance }: CoinPurchaseModalProps) {
+export function BreadPurchaseModal({ isOpen, onClose, currentBalance }: BreadPurchaseModalProps) {
+  const { buyBread, demoMode } = usePlatform();
   const [selectedPackage, setSelectedPackage] = useState<string | null>(null);
   const [purchasing, setPurchasing] = useState(false);
 
-  const handlePurchase = () => {
-    if (!selectedPackage) return;
+  const handlePurchase = async () => {
+    if (!selectedPackage || purchasing) return;
+    const pkg = breadPackages.find((p) => p.id === selectedPackage)!;
     setPurchasing(true);
-    setTimeout(() => {
-      setPurchasing(false);
-      onClose();
-    }, 2000);
+    const result = await buyBread(pkg.id, pkg.amount + pkg.bonus);
+    setPurchasing(false);
+    if (result.ok) {
+      if (demoMode) {
+        toast({ title: `+${(pkg.amount + pkg.bonus).toLocaleString()} Bread 🍞`, description: "Demo mode — no card charged. Connect Supabase + Stripe for real payments." });
+        onClose();
+      }
+      // Real mode redirects to Stripe Checkout, so nothing to do here.
+    } else if (result.error === "not_authenticated") {
+      toast({ title: "Sign in to buy Bread", description: "Create an account to keep Bread in your wallet." });
+    } else {
+      toast({ title: "Checkout unavailable", description: "Please try again in a moment.", variant: "destructive" });
+    }
   };
 
   return (
@@ -47,7 +62,7 @@ export function CoinPurchaseModal({ isOpen, onClose, currentBalance }: CoinPurch
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] bg-deep-space/80 backdrop-blur-sm"
+            className="fixed inset-0 z-[90] bg-deep-space/80 backdrop-blur-sm"
             onClick={onClose}
           />
 
@@ -57,21 +72,20 @@ export function CoinPurchaseModal({ isOpen, onClose, currentBalance }: CoinPurch
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 40 }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="fixed inset-x-4 top-[10%] bottom-[10%] z-[61] flex flex-col rounded-3xl overflow-hidden"
+            className="fixed inset-x-4 top-[10%] bottom-[10%] z-[91] flex flex-col rounded-3xl overflow-hidden"
             style={{
               background: "linear-gradient(180deg, hsl(var(--obsidian)) 0%, hsl(var(--deep-space)) 100%)",
               border: "2px solid transparent",
               backgroundClip: "padding-box",
             }}
           >
-            {/* Gradient border effect */}
             <div className="absolute inset-0 rounded-3xl -z-10 p-[2px] bg-gradient-hero opacity-60" />
 
             {/* Header */}
             <div className="relative px-6 pt-6 pb-4 flex items-center justify-between flex-shrink-0">
               <div>
                 <h2 className="font-display text-2xl text-pure-white uppercase tracking-tight">
-                  Get Coins
+                  Get Bread 🍞
                 </h2>
                 <p className="text-sm text-muted-foreground mt-1">
                   Balance: <span className="text-liquid-gold font-accent font-bold">{currentBalance.toLocaleString()}</span>
@@ -86,9 +100,9 @@ export function CoinPurchaseModal({ isOpen, onClose, currentBalance }: CoinPurch
               </motion.button>
             </div>
 
-            {/* Coin Packages */}
+            {/* Bread Packages */}
             <div className="flex-1 overflow-y-auto px-6 pb-4 space-y-3 scrollbar-hide">
-              {coinPackages.map((pkg, index) => (
+              {breadPackages.map((pkg, index) => (
                 <motion.button
                   key={pkg.id}
                   initial={{ opacity: 0, x: -20 }}
@@ -102,7 +116,6 @@ export function CoinPurchaseModal({ isOpen, onClose, currentBalance }: CoinPurch
                       : "border-border bg-muted/30 hover:border-muted-foreground/40"
                   )}
                 >
-                  {/* Popular / Best Value Badge */}
                   {(pkg.popular || pkg.bestValue) && (
                     <div className={cn(
                       "absolute -top-3 right-4 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider",
@@ -116,14 +129,13 @@ export function CoinPurchaseModal({ isOpen, onClose, currentBalance }: CoinPurch
 
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                      {/* Animated Coin Stack */}
                       <motion.div
                         className="relative w-14 h-14 flex items-center justify-center"
                         animate={selectedPackage === pkg.id ? { rotateY: [0, 360] } : {}}
                         transition={{ duration: 0.8 }}
                       >
                         <div className="w-12 h-12 rounded-full bg-gradient-gold flex items-center justify-center shadow-glow-gold">
-                          <Coins className="w-6 h-6 text-deep-space" />
+                          <span className="text-2xl">🍞</span>
                         </div>
                         {pkg.bonus > 0 && (
                           <motion.div
@@ -147,7 +159,7 @@ export function CoinPurchaseModal({ isOpen, onClose, currentBalance }: CoinPurch
                             </span>
                           )}
                         </div>
-                        <span className="text-xs text-muted-foreground">coins</span>
+                        <span className="text-xs text-muted-foreground">Bread</span>
                       </div>
                     </div>
 
@@ -163,7 +175,6 @@ export function CoinPurchaseModal({ isOpen, onClose, currentBalance }: CoinPurch
 
             {/* Payment Section */}
             <div className="flex-shrink-0 px-6 pb-6 space-y-4 border-t border-border/50 pt-4">
-              {/* Payment Methods */}
               <div className="flex items-center justify-center gap-3">
                 <div className="px-4 py-2 rounded-lg bg-muted/50 text-xs font-medium text-chrome-silver">
                   Apple Pay
@@ -176,7 +187,6 @@ export function CoinPurchaseModal({ isOpen, onClose, currentBalance }: CoinPurch
                 </div>
               </div>
 
-              {/* Purchase Button */}
               <motion.button
                 onClick={handlePurchase}
                 disabled={!selectedPackage || purchasing}
@@ -189,24 +199,16 @@ export function CoinPurchaseModal({ isOpen, onClose, currentBalance }: CoinPurch
                 whileTap={selectedPackage ? { scale: 0.98 } : undefined}
               >
                 {purchasing ? (
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                  >
-                    <Coins className="w-5 h-5" />
-                  </motion.div>
+                  <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
-                  <>
-                    <Zap className="w-5 h-5" />
-                    {selectedPackage ? "Purchase Now" : "Select a Package"}
-                  </>
+                  <Zap className="w-5 h-5" />
                 )}
+                {purchasing ? "Processing..." : selectedPackage ? "Purchase Now" : "Select a Package"}
               </motion.button>
 
-              {/* Security Badge */}
               <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
                 <Shield className="w-3.5 h-3.5" />
-                <span>Secure payment · Cancel anytime</span>
+                <span>{demoMode ? "Demo mode — payments simulated" : "Secure payment via Stripe"}</span>
               </div>
             </div>
           </motion.div>

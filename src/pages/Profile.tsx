@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Settings, Edit3, Grid3X3, Heart, BookmarkCheck, Share2, ChevronLeft, Camera, Upload, Play, Eye, Plus, X, Film } from "lucide-react";
+import { Settings, Edit3, Grid3X3, Heart, BookmarkCheck, ChevronLeft, Camera, Upload, Play, Eye, X, Film, LogIn, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { VideoCard, VideoCardProps } from "@/components/VideoCard";
+import { VideoCardProps } from "@/components/VideoCard";
 import { BottomNav } from "@/components/BottomNav";
 import { VideoUploadModal } from "@/components/VideoUploadModal";
-import { allVideos, popularCreators } from "@/data/videos";
+import { BreadPurchaseModal } from "@/components/BreadPurchaseModal";
+import { usePlatform } from "@/contexts/PlatformContext";
+import { allVideos } from "@/data/videos";
 
 import thumb1 from "@/assets/thumb-1.jpg";
 import thumb2 from "@/assets/thumb-2.jpg";
@@ -16,10 +18,12 @@ const likedVideos = allVideos.slice(2, 8);
 
 const Profile = () => {
   const navigate = useNavigate();
+  const platform = usePlatform();
   const [activeTab, setActiveTab] = useState<"videos" | "liked" | "saved">("videos");
   const [isEditing, setIsEditing] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [username, setUsername] = useState("KingCreator");
+  const [showBreadModal, setShowBreadModal] = useState(false);
+  const [username, setUsername] = useState(platform.username ?? "KingCreator");
   const [bio, setBio] = useState("Filmmaker. Storyteller. Culture Architect. 🎬✨");
   const [editUsername, setEditUsername] = useState(username);
   const [editBio, setEditBio] = useState(bio);
@@ -112,11 +116,72 @@ const Profile = () => {
             <Film className="w-4 h-4" /> Admin Studio
           </motion.button>
           <motion.button
+            onClick={() => setShowUploadModal(true)}
             className="w-12 py-3 rounded-xl bg-obsidian border border-chrome-silver/10 flex items-center justify-center"
             whileTap={{ scale: 0.97 }}
           >
-            <Share2 className="w-4 h-4 text-chrome-silver" />
+            <Upload className="w-4 h-4 text-chrome-silver" />
           </motion.button>
+        </div>
+
+        {/* Bread Wallet */}
+        <div className="mt-5 rounded-2xl border border-liquid-gold/25 bg-gradient-to-br from-obsidian to-deep-space p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-muted-foreground uppercase tracking-wide">Bread Wallet</p>
+              <div className="flex items-baseline gap-2 mt-1">
+                <span className="text-2xl">🍞</span>
+                <span className="font-accent font-bold text-3xl text-liquid-gold tabular-nums">
+                  {platform.breadBalance.toLocaleString()}
+                </span>
+              </div>
+            </div>
+            <motion.button
+              onClick={() => setShowBreadModal(true)}
+              className="px-5 py-2.5 rounded-xl bg-gradient-gold font-display text-sm text-deep-space uppercase tracking-wide"
+              whileTap={{ scale: 0.95 }}
+            >
+              Get Bread
+            </motion.button>
+          </div>
+
+          {platform.transactions.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-chrome-silver/10 space-y-2">
+              {platform.transactions.slice(0, 5).map((tx) => (
+                <div key={tx.id} className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground capitalize">{tx.kind.replace(/_/g, " ")}</span>
+                  <span className={tx.amount > 0 ? "text-liquid-gold font-bold" : "text-chrome-silver"}>
+                    {tx.amount > 0 ? "+" : ""}{tx.amount.toLocaleString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {platform.demoMode && (
+            <p className="mt-3 text-[11px] text-muted-foreground">
+              Demo wallet (this device only). Connect Supabase to sync Bread across devices.
+            </p>
+          )}
+        </div>
+
+        {/* Account */}
+        <div className="mt-3">
+          {platform.demoMode ? null : platform.user ? (
+            <button
+              onClick={() => platform.signOut()}
+              className="w-full py-3 rounded-xl bg-obsidian border border-chrome-silver/10 text-sm text-chrome-silver flex items-center justify-center gap-2"
+            >
+              <LogOut className="w-4 h-4" /> Sign Out ({platform.user.email})
+            </button>
+          ) : (
+            <button
+              onClick={() => navigate("/auth")}
+              className="w-full py-3 rounded-xl bg-gradient-button text-sm font-bold text-pure-white flex items-center justify-center gap-2"
+            >
+              <LogIn className="w-4 h-4" /> Sign In — Bread syncs to your account
+            </button>
+          )}
         </div>
       </div>
 
@@ -244,6 +309,7 @@ const Profile = () => {
       </AnimatePresence>
 
       <VideoUploadModal isOpen={showUploadModal} onClose={() => setShowUploadModal(false)} />
+      <BreadPurchaseModal isOpen={showBreadModal} onClose={() => setShowBreadModal(false)} currentBalance={platform.breadBalance} />
     </div>
   );
 };
