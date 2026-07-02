@@ -26,7 +26,6 @@ export function VideoUploadModal({ isOpen, onClose }: VideoUploadModalProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [selectedChannel, setSelectedChannel] = useState("");
-  const [episodePrice, setEpisodePrice] = useState(30);
   const [freeEpisodes, setFreeEpisodes] = useState(5);
   const [videoFiles, setVideoFiles] = useState<File[]>([]);
   const [coverFile, setCoverFile] = useState<File | null>(null);
@@ -80,7 +79,6 @@ export function VideoUploadModal({ isOpen, onClose }: VideoUploadModalProps) {
           title: title.trim(),
           description: description.trim() || null,
           channel: selectedChannel,
-          episode_price: episodePrice,
           free_episodes: freeEpisodes,
           status: "draft",
         })
@@ -274,28 +272,16 @@ export function VideoUploadModal({ isOpen, onClose }: VideoUploadModalProps) {
                     />
                   </div>
 
-                  {/* Monetization */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 block">Free Episodes</label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={freeEpisodes}
-                        onChange={(e) => setFreeEpisodes(Math.max(0, parseInt(e.target.value) || 0))}
-                        className="w-full px-4 py-3 rounded-xl bg-deep-space border border-chrome-silver/10 text-chrome-silver font-body text-sm focus:border-electric-violet outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 block">🍞 Per Episode</label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={episodePrice}
-                        onChange={(e) => setEpisodePrice(Math.max(0, parseInt(e.target.value) || 0))}
-                        className="w-full px-4 py-3 rounded-xl bg-deep-space border border-chrome-silver/10 text-chrome-silver font-body text-sm focus:border-electric-violet outline-none"
-                      />
-                    </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 block">Free Preview Episodes</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={freeEpisodes}
+                      onChange={(e) => setFreeEpisodes(Math.max(0, parseInt(e.target.value) || 0))}
+                      className="w-full px-4 py-3 rounded-xl bg-deep-space border border-chrome-silver/10 text-chrome-silver font-body text-sm focus:border-electric-violet outline-none"
+                    />
+                    <p className="mt-1.5 text-[11px] text-muted-foreground">Episodes after these need a Dopamine Unlimited subscription.</p>
                   </div>
 
                   <div>

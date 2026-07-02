@@ -50,9 +50,10 @@ listening to `checkout.session.completed`, then:
 supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_...
 ```
 
-Bread packages/prices are defined in `supabase/functions/create-checkout/index.ts`
-(server-side, so clients can't tamper). The display list lives in
-`src/components/BreadPurchaseModal.tsx` — keep the two in sync.
+The $5.99/mo subscription price is defined in
+`supabase/functions/create-checkout/index.ts` (server-side, so clients
+can't tamper). The webhook also needs `customer.subscription.updated`
+and `customer.subscription.deleted` events enabled.
 
 ## 3. Deploy (Vercel)
 

@@ -7,7 +7,6 @@ import { ChannelSwitcher, Channel } from "@/components/ChannelSwitcher";
 import { FeaturedHero, FeaturedSlide } from "@/components/FeaturedHero";
 import { VideoRow } from "@/components/VideoRow";
 import { VideoCardProps } from "@/components/VideoCard";
-import { BreadPurchaseModal } from "@/components/BreadPurchaseModal";
 import { EpisodePlayer } from "@/components/EpisodePlayer";
 import { useCatalog } from "@/hooks/useCatalog";
 import { usePlatform } from "@/contexts/PlatformContext";
@@ -22,35 +21,37 @@ const Index = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: catalog, isLoading } = useCatalog();
-  const { breadBalance, refreshWallet, getProgress, savedIds, toggleSaved } = usePlatform();
+  const { user, isSubscriber, subscribe, refreshEntitlements, getProgress, savedIds, toggleSaved } = usePlatform();
 
   const [activeChannel, setActiveChannel] = useState<Channel>("all");
   const [activeTab, setActiveTab] = useState("home");
-  const [showBreadModal, setShowBreadModal] = useState(false);
   const [playingSeries, setPlayingSeries] = useState<Series | null>(null);
   const [trailerSeries, setTrailerSeries] = useState<Series | null>(null);
 
   // Stripe checkout return
   useEffect(() => {
-    const bread = searchParams.get("bread_purchase");
     const sub = searchParams.get("subscription");
-    if (!bread && !sub) return;
-    if (bread === "success") {
-      toast({ title: "Bread is in your wallet 🍞", description: "Payment received. Enjoy the show." });
-      refreshWallet();
-    } else if (bread === "cancelled") {
-      toast({ title: "Purchase cancelled", description: "No charge was made." });
-    }
+    if (!sub) return;
     if (sub === "success") {
       toast({ title: "Welcome to Dopamine Unlimited 👑", description: "Every episode of every series is yours. Enjoy." });
-      refreshWallet();
+      refreshEntitlements();
     } else if (sub === "cancelled") {
       toast({ title: "Subscription cancelled", description: "No charge was made." });
     }
-    searchParams.delete("bread_purchase");
     searchParams.delete("subscription");
     setSearchParams(searchParams, { replace: true });
-  }, [searchParams, setSearchParams, refreshWallet]);
+  }, [searchParams, setSearchParams, refreshEntitlements]);
+
+  const handleUnlimitedClick = async () => {
+    if (!user) {
+      navigate("/auth");
+      return;
+    }
+    const result = await subscribe();
+    if (!result.ok) {
+      toast({ title: "Checkout unavailable", description: "Please try again in a moment.", variant: "destructive" });
+    }
+  };
 
   const seriesList = catalog?.seriesList ?? [];
   const episodesBySeries = catalog?.episodesBySeries ?? {};
@@ -125,8 +126,8 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-deep-space grain-overlay">
       <TopNav
-        breadBalance={breadBalance}
-        onBreadClick={() => setShowBreadModal(true)}
+        isSubscriber={isSubscriber}
+        onUnlimitedClick={handleUnlimitedClick}
       />
 
       <main className="pb-28">
@@ -201,12 +202,6 @@ const Index = () => {
         else if (tab === "discover") navigate("/discover");
         else setActiveTab(tab);
       }} notificationCount={0} />
-
-      <BreadPurchaseModal
-        isOpen={showBreadModal}
-        onClose={() => setShowBreadModal(false)}
-        currentBalance={breadBalance}
-      />
 
       <AnimatePresence>
         {playingSeries && (

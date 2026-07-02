@@ -8,7 +8,6 @@ import { cn } from "@/lib/utils";
 import { Series, Episode } from "@/lib/types";
 import { usePlatform } from "@/contexts/PlatformContext";
 import { PremiumUnlockModal } from "./PremiumUnlockModal";
-import { BreadPurchaseModal } from "./BreadPurchaseModal";
 import { CommentsSheet } from "./CommentsSheet";
 import { toast } from "@/hooks/use-toast";
 
@@ -23,7 +22,7 @@ interface EpisodePlayerProps {
 export function EpisodePlayer({
   series, episodes, initialEpisodeNumber = 1, isOpen, onClose,
 }: EpisodePlayerProps) {
-  const { isWatchable, unlockEpisode, breadBalance, saveProgress, savedIds, toggleSaved, subscribe, demoMode } = usePlatform();
+  const { isWatchable, saveProgress, savedIds, toggleSaved, subscribe, demoMode } = usePlatform();
 
   const startIdx = Math.max(0, episodes.findIndex((e) => e.episodeNumber === initialEpisodeNumber));
   const [currentIndex, setCurrentIndex] = useState(startIdx === -1 ? 0 : startIdx);
@@ -36,8 +35,6 @@ export function EpisodePlayer({
   const [heartPosition, setHeartPosition] = useState({ x: 0, y: 0 });
   const [progress, setProgress] = useState(0);
   const [pendingIndex, setPendingIndex] = useState<number | null>(null);
-  const [showBreadModal, setShowBreadModal] = useState(false);
-  const [unlocking, setUnlocking] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -138,22 +135,6 @@ export function EpisodePlayer({
     }
     // real mode redirects to Stripe Checkout
   }, [subscribe, subscribing, demoMode, pendingIndex]);
-
-  const handleUnlock = useCallback(async () => {
-    if (!pendingEpisode || unlocking) return;
-    setUnlocking(true);
-    const result = await unlockEpisode(pendingEpisode, series);
-    setUnlocking(false);
-    if (result.ok) {
-      const idx = pendingIndex!;
-      setPendingIndex(null);
-      setCurrentIndex(idx);
-      setProgress(0);
-      setIsPlaying(true);
-    } else if (result.error === "insufficient_bread") {
-      setShowBreadModal(true);
-    }
-  }, [pendingEpisode, pendingIndex, series, unlockEpisode, unlocking]);
 
   const togglePlay = useCallback(() => {
     const v = videoRef.current;
@@ -448,7 +429,7 @@ export function EpisodePlayer({
             >
               {!isWatchable(episodes[currentIndex + 1], series) ? (
                 <span className="flex items-center gap-1 text-[10px] text-liquid-gold font-medium">
-                  <Lock className="w-3 h-3" /> Next episode: {series.episodePrice} Bread
+                  <Lock className="w-3 h-3" /> Next episode: members only
                 </span>
               ) : (
                 <span className="text-[10px] text-pure-white/60 font-medium">Swipe up for next</span>
@@ -464,19 +445,8 @@ export function EpisodePlayer({
         onClose={() => setPendingIndex(null)}
         videoTitle={`${series.title} — Episode ${pendingEpisode?.episodeNumber ?? ""}`}
         thumbnail={pendingEpisode?.thumbnailUrl ?? series.coverUrl ?? ""}
-        breadCost={series.episodePrice}
-        currentBalance={breadBalance}
-        unlocking={unlocking}
         subscribing={subscribing}
-        onUnlock={handleUnlock}
-        onBuyBread={() => setShowBreadModal(true)}
         onSubscribe={handleSubscribe}
-      />
-
-      <BreadPurchaseModal
-        isOpen={showBreadModal}
-        onClose={() => setShowBreadModal(false)}
-        currentBalance={breadBalance}
       />
 
       <CommentsSheet

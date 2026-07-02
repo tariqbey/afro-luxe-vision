@@ -1,36 +1,24 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Lock, Play, Loader2, Crown } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { X, Lock, Loader2, Crown, Check } from "lucide-react";
 
 interface PremiumUnlockModalProps {
   isOpen: boolean;
   onClose: () => void;
   videoTitle: string;
   thumbnail: string;
-  breadCost: number;
-  currentBalance: number;
-  unlocking?: boolean;
   subscribing?: boolean;
-  onUnlock: () => void;
-  onBuyBread: () => void;
   onSubscribe: () => void;
 }
 
+/** Subscription paywall — the only way past the free episodes. */
 export function PremiumUnlockModal({
   isOpen,
   onClose,
   videoTitle,
   thumbnail,
-  breadCost,
-  currentBalance,
-  unlocking = false,
   subscribing = false,
-  onUnlock,
-  onBuyBread,
   onSubscribe,
 }: PremiumUnlockModalProps) {
-  const canAfford = currentBalance >= breadCost;
-
   return (
     <AnimatePresence>
       {isOpen && (
@@ -64,7 +52,7 @@ export function PremiumUnlockModal({
               <X className="w-4 h-4 text-chrome-silver" />
             </motion.button>
 
-            {/* Blurred Video Preview */}
+            {/* Blurred Episode Preview */}
             <div className="relative mx-6 rounded-2xl overflow-hidden aspect-video mb-6">
               <img src={thumbnail} alt={videoTitle} className="w-full h-full object-cover blur-sm scale-105" />
               <div className="absolute inset-0 bg-deep-space/50 flex flex-col items-center justify-center gap-3">
@@ -74,7 +62,7 @@ export function PremiumUnlockModal({
                 >
                   <Lock className="w-10 h-10 text-liquid-gold" />
                 </motion.div>
-                <span className="font-display text-sm text-pure-white uppercase tracking-wide">Locked Episode</span>
+                <span className="font-display text-sm text-pure-white uppercase tracking-wide">Members Only</span>
               </div>
             </div>
 
@@ -82,67 +70,44 @@ export function PremiumUnlockModal({
             <div className="px-6 pb-8 space-y-5">
               <div className="text-center space-y-2">
                 <h3 className="font-display text-xl text-pure-white uppercase">{videoTitle}</h3>
-                <p className="text-sm text-muted-foreground">Keep watching with Dopamine Unlimited</p>
+                <p className="text-sm text-muted-foreground">The story keeps going with Dopamine Unlimited</p>
               </div>
 
-              {/* Subscription — the headline offer */}
+              {/* What you get */}
+              <div className="space-y-2.5 px-2">
+                {[
+                  "Every episode of every series",
+                  "New releases the moment they drop",
+                  "Binge with autoplay — no interruptions",
+                  "Cancel anytime",
+                ].map((line) => (
+                  <div key={line} className="flex items-center gap-2.5">
+                    <Check className="w-4 h-4 text-liquid-gold flex-shrink-0" />
+                    <span className="text-sm text-chrome-silver/85">{line}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Subscribe CTA */}
               <motion.button
                 onClick={onSubscribe}
                 disabled={subscribing}
-                className="w-full rounded-2xl bg-gradient-button p-4 text-left shadow-glow-magenta disabled:opacity-60"
+                className="w-full h-16 rounded-2xl bg-gradient-button shadow-glow-magenta flex items-center justify-center gap-3 disabled:opacity-60"
                 whileTap={{ scale: 0.98 }}
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Crown className="w-7 h-7 text-liquid-gold" />
-                    <div>
-                      <p className="font-display text-base text-pure-white uppercase tracking-wide">
-                        {subscribing ? "Starting..." : "Unlimited"}
-                      </p>
-                      <p className="text-xs text-pure-white/80">
-                        Every episode. Every series. Cancel anytime.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="font-accent font-bold text-xl text-pure-white">$5.99</p>
-                    <p className="text-[10px] text-pure-white/70 uppercase">/month</p>
-                  </div>
-                </div>
+                {subscribing ? (
+                  <Loader2 className="w-6 h-6 text-pure-white animate-spin" />
+                ) : (
+                  <Crown className="w-6 h-6 text-liquid-gold" />
+                )}
+                <span className="font-display text-lg text-pure-white uppercase tracking-wide">
+                  {subscribing ? "Starting..." : "Go Unlimited — $5.99/mo"}
+                </span>
               </motion.button>
 
-              {/* Divider */}
-              <div className="flex items-center gap-3">
-                <div className="flex-1 h-px bg-chrome-silver/10" />
-                <span className="text-xs text-muted-foreground">or just this episode</span>
-                <div className="flex-1 h-px bg-chrome-silver/10" />
-              </div>
-
-              {/* À la carte Bread unlock */}
-              {canAfford ? (
-                <motion.button
-                  onClick={onUnlock}
-                  disabled={unlocking}
-                  className="w-full h-13 py-3.5 rounded-2xl border border-liquid-gold/40 font-body font-semibold text-sm text-liquid-gold flex items-center justify-center gap-2 disabled:opacity-60"
-                  whileTap={{ scale: 0.98 }}
-                >
-                  {unlocking ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Play className="w-4 h-4 fill-current" />
-                  )}
-                  {unlocking ? "Unlocking..." : `Unlock for ${breadCost} 🍞 (you have ${currentBalance.toLocaleString()})`}
-                </motion.button>
-              ) : (
-                <motion.button
-                  onClick={onBuyBread}
-                  className="w-full h-13 py-3.5 rounded-2xl border border-chrome-silver/20 font-body font-semibold text-sm text-chrome-silver flex items-center justify-center gap-2"
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <span>🍞</span>
-                  Get Bread — this episode is {breadCost} 🍞
-                </motion.button>
-              )}
+              <p className="text-center text-xs text-muted-foreground">
+                Secure payment via Stripe · Cancel anytime in your profile
+              </p>
             </div>
           </motion.div>
         </>

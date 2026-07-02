@@ -3,20 +3,13 @@ import {
 } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import { Series, Episode, BreadTransaction, WatchPoint } from "@/lib/types";
+import { Series, Episode, WatchPoint } from "@/lib/types";
 
 const LS = {
-  bread: "dopamine.demo.bread",
-  unlocks: "dopamine.demo.unlocks",
   progress: "dopamine.demo.progress",
   saved: "dopamine.saved",
   subscriber: "dopamine.demo.subscriber",
 };
-
-interface UnlockResult {
-  ok: boolean;
-  error?: "insufficient_bread" | "not_authenticated" | "unknown";
-}
 
 interface PlatformContextValue {
   demoMode: boolean;
@@ -24,8 +17,7 @@ interface PlatformContextValue {
   user: User | null;
   username: string | null;
   isAdmin: boolean;
-  breadBalance: number;
-  transactions: BreadTransaction[];
+  /** Episodes bought à la carte before the subscription switch — still honored. */
   unlockedIds: Set<string>;
   /** Series in the user's My List. DB-backed when signed in, device-local otherwise. */
   savedIds: Set<string>;
@@ -35,12 +27,9 @@ interface PlatformContextValue {
   subscriptionEnd: string | null;
   subscribe: () => Promise<{ ok: boolean; error?: string }>;
   manageSubscription: () => Promise<{ ok: boolean; error?: string }>;
-  /** Can this episode play right now (free window or already unlocked)? */
+  /** Can this episode play right now (subscriber, free window, or legacy unlock)? */
   isWatchable: (ep: Episode, series: Series) => boolean;
-  unlockEpisode: (ep: Episode, series: Series) => Promise<UnlockResult>;
-  /** Real mode: redirects to Stripe Checkout. Demo mode: credits instantly. */
-  buyBread: (packageId: string, amount: number) => Promise<{ ok: boolean; error?: string }>;
-  refreshWallet: () => Promise<void>;
+  refreshEntitlements: () => Promise<void>;
   saveProgress: (seriesId: string, episode: Episode, seconds: number) => void;
   getProgress: (seriesId: string) => WatchPoint | null;
   signOut: () => Promise<void>;
@@ -63,13 +52,7 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [username, setUsername] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [breadBalance, setBreadBalance] = useState<number>(() =>
-    demoMode ? readLocal(LS.bread, 100) : 0,
-  );
-  const [transactions, setTransactions] = useState<BreadTransaction[]>([]);
-  const [unlockedIds, setUnlockedIds] = useState<Set<string>>(() =>
-    demoMode ? new Set(readLocal<string[]>(LS.unlocks, [])) : new Set(),
-  );
+  const [unlockedIds, setUnlockedIds] = useState<Set<string>>(new Set());
   const [savedIds, setSavedIds] = useState<Set<string>>(() =>
     new Set(readLocal<string[]>(LS.saved, [])),
   );
@@ -78,23 +61,15 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
   );
   const [subscriptionEnd, setSubscriptionEnd] = useState<string | null>(null);
 
-  const refreshWallet = useCallback(async () => {
+  const refreshEntitlements = useCallback(async () => {
     if (demoMode || !supabase) return;
     const { data: auth } = await supabase.auth.getUser();
     if (!auth.user) return;
-    const [{ data: wallet }, { data: txs }, { data: unlocks }, { data: saves }, { data: sub }] = await Promise.all([
-      supabase.from("wallets").select("balance").eq("user_id", auth.user.id).single(),
-      supabase.from("bread_transactions").select("*").order("created_at", { ascending: false }).limit(25),
+    const [{ data: unlocks }, { data: saves }, { data: sub }] = await Promise.all([
       supabase.from("unlocks").select("episode_id"),
       supabase.from("saved_series").select("series_id"),
       supabase.from("subscriptions").select("status, current_period_end").eq("user_id", auth.user.id).maybeSingle(),
     ]);
-    if (wallet) setBreadBalance(wallet.balance);
-    if (txs) {
-      setTransactions(txs.map((t) => ({
-        id: t.id, amount: t.amount, kind: t.kind, refId: t.ref_id, note: t.note, createdAt: t.created_at,
-      })));
-    }
     if (unlocks) setUnlockedIds(new Set(unlocks.map((u) => u.episode_id as string)));
     if (saves) setSavedIds(new Set(saves.map((s) => s.series_id as string)));
     setIsSubscriber(Boolean(
@@ -103,6 +78,34 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
     ));
     setSubscriptionEnd(sub?.current_period_end ?? null);
   }, [demoMode]);
+
+  useEffect(() => {
+    if (demoMode || !supabase) return;
+    supabase.auth.getSession().then(({ data }) => {
+      setUser(data.session?.user ?? null);
+      setLoading(false);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+    return () => sub.subscription.unsubscribe();
+  }, [demoMode]);
+
+  useEffect(() => {
+    if (demoMode || !supabase || !user) return;
+    supabase.from("profiles").select("username, is_admin, is_creator").eq("id", user.id).single()
+      .then(({ data }) => {
+        setUsername(data?.username ?? null);
+        setIsAdmin(Boolean(data?.is_admin || data?.is_creator));
+      });
+    refreshEntitlements();
+  }, [demoMode, user, refreshEntitlements]);
+
+  const isWatchable = useCallback(
+    (ep: Episode, series: Series) =>
+      isSubscriber || ep.episodeNumber <= series.freeEpisodes || unlockedIds.has(ep.id),
+    [unlockedIds, isSubscriber],
+  );
 
   const subscribe = useCallback(async () => {
     if (demoMode) {
@@ -151,79 +154,6 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
     }
   }, [savedIds, demoMode, user]);
 
-  useEffect(() => {
-    if (demoMode || !supabase) return;
-    supabase.auth.getSession().then(({ data }) => {
-      setUser(data.session?.user ?? null);
-      setLoading(false);
-    });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-    return () => sub.subscription.unsubscribe();
-  }, [demoMode]);
-
-  useEffect(() => {
-    if (demoMode || !supabase || !user) return;
-    supabase.from("profiles").select("username, is_admin, is_creator").eq("id", user.id).single()
-      .then(({ data }) => {
-        setUsername(data?.username ?? null);
-        setIsAdmin(Boolean(data?.is_admin || data?.is_creator));
-      });
-    refreshWallet();
-  }, [demoMode, user, refreshWallet]);
-
-  const isWatchable = useCallback(
-    (ep: Episode, series: Series) =>
-      isSubscriber || ep.episodeNumber <= series.freeEpisodes || unlockedIds.has(ep.id),
-    [unlockedIds, isSubscriber],
-  );
-
-  const unlockEpisode = useCallback(
-    async (ep: Episode, series: Series): Promise<UnlockResult> => {
-      if (demoMode) {
-        const balance = readLocal(LS.bread, 100);
-        if (balance < series.episodePrice) return { ok: false, error: "insufficient_bread" };
-        const newBalance = balance - series.episodePrice;
-        const unlocks = [...readLocal<string[]>(LS.unlocks, []), ep.id];
-        localStorage.setItem(LS.bread, JSON.stringify(newBalance));
-        localStorage.setItem(LS.unlocks, JSON.stringify(unlocks));
-        setBreadBalance(newBalance);
-        setUnlockedIds(new Set(unlocks));
-        return { ok: true };
-      }
-      if (!supabase || !user) return { ok: false, error: "not_authenticated" };
-      const { data, error } = await supabase.rpc("unlock_episode", { p_episode_id: ep.id });
-      if (error) return { ok: false, error: "unknown" };
-      if (!data?.ok) {
-        return { ok: false, error: data?.error === "insufficient_bread" ? "insufficient_bread" : "unknown" };
-      }
-      setUnlockedIds((prev) => new Set([...prev, ep.id]));
-      if (typeof data.new_balance === "number") setBreadBalance(data.new_balance);
-      return { ok: true };
-    },
-    [demoMode, user],
-  );
-
-  const buyBread = useCallback(
-    async (packageId: string, amount: number) => {
-      if (demoMode) {
-        const newBalance = readLocal(LS.bread, 100) + amount;
-        localStorage.setItem(LS.bread, JSON.stringify(newBalance));
-        setBreadBalance(newBalance);
-        return { ok: true };
-      }
-      if (!supabase || !user) return { ok: false, error: "not_authenticated" };
-      const { data, error } = await supabase.functions.invoke("create-checkout", {
-        body: { packageId, returnUrl: window.location.origin },
-      });
-      if (error || !data?.url) return { ok: false, error: "checkout_failed" };
-      window.location.href = data.url;
-      return { ok: true };
-    },
-    [demoMode, user],
-  );
-
   const saveProgress = useCallback(
     (seriesId: string, episode: Episode, seconds: number) => {
       const all = readLocal<Record<string, WatchPoint>>(LS.progress, {});
@@ -251,16 +181,17 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setUsername(null);
     setIsAdmin(false);
-    setBreadBalance(demoMode ? readLocal(LS.bread, 100) : 0);
-    setUnlockedIds(demoMode ? new Set(readLocal<string[]>(LS.unlocks, [])) : new Set());
+    setUnlockedIds(new Set());
+    setIsSubscriber(demoMode ? readLocal(LS.subscriber, false) : false);
+    setSubscriptionEnd(null);
   }, [demoMode]);
 
   return (
     <PlatformContext.Provider
       value={{
-        demoMode, loading, user, username, isAdmin, breadBalance, transactions, unlockedIds,
+        demoMode, loading, user, username, isAdmin, unlockedIds,
         savedIds, toggleSaved, isSubscriber, subscriptionEnd, subscribe, manageSubscription,
-        isWatchable, unlockEpisode, buyBread, refreshWallet, saveProgress, getProgress, signOut,
+        isWatchable, refreshEntitlements, saveProgress, getProgress, signOut,
       }}
     >
       {children}

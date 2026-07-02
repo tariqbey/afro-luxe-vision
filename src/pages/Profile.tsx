@@ -5,7 +5,6 @@ import { useNavigate } from "react-router-dom";
 import { VideoCardProps } from "@/components/VideoCard";
 import { BottomNav } from "@/components/BottomNav";
 import { VideoUploadModal } from "@/components/VideoUploadModal";
-import { BreadPurchaseModal } from "@/components/BreadPurchaseModal";
 import { usePlatform } from "@/contexts/PlatformContext";
 import { useCatalog } from "@/hooks/useCatalog";
 import { allVideos } from "@/data/videos";
@@ -23,7 +22,6 @@ const Profile = () => {
   const [activeTab, setActiveTab] = useState<"videos" | "liked" | "saved">("videos");
   const [isEditing, setIsEditing] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [showBreadModal, setShowBreadModal] = useState(false);
   const [username, setUsername] = useState(platform.username ?? "KingCreator");
   const [bio, setBio] = useState("Filmmaker. Storyteller. Culture Architect. 🎬✨");
   const [editUsername, setEditUsername] = useState(username);
@@ -182,47 +180,6 @@ const Profile = () => {
           </div>
         </div>
 
-        {/* Bread Wallet */}
-        <div className="mt-3 rounded-2xl border border-liquid-gold/25 bg-gradient-to-br from-obsidian to-deep-space p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-muted-foreground uppercase tracking-wide">Bread Wallet</p>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-2xl">🍞</span>
-                <span className="font-accent font-bold text-3xl text-liquid-gold tabular-nums">
-                  {platform.breadBalance.toLocaleString()}
-                </span>
-              </div>
-            </div>
-            <motion.button
-              onClick={() => setShowBreadModal(true)}
-              className="px-5 py-2.5 rounded-xl bg-gradient-gold font-display text-sm text-deep-space uppercase tracking-wide"
-              whileTap={{ scale: 0.95 }}
-            >
-              Get Bread
-            </motion.button>
-          </div>
-
-          {platform.transactions.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-chrome-silver/10 space-y-2">
-              {platform.transactions.slice(0, 5).map((tx) => (
-                <div key={tx.id} className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground capitalize">{tx.kind.replace(/_/g, " ")}</span>
-                  <span className={tx.amount > 0 ? "text-liquid-gold font-bold" : "text-chrome-silver"}>
-                    {tx.amount > 0 ? "+" : ""}{tx.amount.toLocaleString()}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {platform.demoMode && (
-            <p className="mt-3 text-[11px] text-muted-foreground">
-              Demo wallet (this device only). Connect Supabase to sync Bread across devices.
-            </p>
-          )}
-        </div>
-
         {/* Account */}
         <div className="mt-3">
           {platform.demoMode ? null : platform.user ? (
@@ -237,7 +194,7 @@ const Profile = () => {
               onClick={() => navigate("/auth")}
               className="w-full py-3 rounded-xl bg-gradient-button text-sm font-bold text-pure-white flex items-center justify-center gap-2"
             >
-              <LogIn className="w-4 h-4" /> Sign In — Bread syncs to your account
+              <LogIn className="w-4 h-4" /> Sign In — your subscription follows your account
             </button>
           )}
         </div>
@@ -376,7 +333,6 @@ const Profile = () => {
       </AnimatePresence>
 
       <VideoUploadModal isOpen={showUploadModal} onClose={() => setShowUploadModal(false)} />
-      <BreadPurchaseModal isOpen={showBreadModal} onClose={() => setShowBreadModal(false)} currentBalance={platform.breadBalance} />
     </div>
   );
 };

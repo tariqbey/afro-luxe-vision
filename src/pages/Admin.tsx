@@ -15,7 +15,6 @@ interface AdminSeries {
   status: "draft" | "published" | "archived";
   channel: string | null;
   cover_url: string | null;
-  episode_price: number;
   free_episodes: number;
   featured_at: string | null;
   trailer_url: string | null;
@@ -35,7 +34,7 @@ async function fetchAdminSeries(): Promise<AdminSeries[]> {
   if (!supabase) return [];
   const { data, error } = await supabase
     .from("series")
-    .select("id, title, status, channel, cover_url, episode_price, free_episodes, featured_at, trailer_url, episodes(count)")
+    .select("id, title, status, channel, cover_url, free_episodes, featured_at, trailer_url, episodes(count)")
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []).map((s) => ({
@@ -85,7 +84,6 @@ const Admin = () => {
 function SeriesCard({ series, onChanged }: { series: AdminSeries; onChanged: () => void }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [uploadNote, setUploadNote] = useState("");
-  const [price, setPrice] = useState(series.episode_price);
   const [free, setFree] = useState(series.free_episodes);
   const [showEpisodes, setShowEpisodes] = useState(false);
   const episodesInputRef = useRef<HTMLInputElement>(null);
@@ -260,10 +258,10 @@ function SeriesCard({ series, onChanged }: { series: AdminSeries; onChanged: () 
     run("Save pricing", async () => {
       const { error } = await supabase!
         .from("series")
-        .update({ episode_price: price, free_episodes: free })
+        .update({ free_episodes: free })
         .eq("id", series.id);
       if (error) throw error;
-      toast({ title: "Pricing saved", description: `${free} free, then ${price} 🍞 per episode.` });
+      toast({ title: "Saved", description: `First ${free} episodes free; the rest need Unlimited.` });
     });
 
   const deleteSeries = () => {
@@ -317,13 +315,7 @@ function SeriesCard({ series, onChanged }: { series: AdminSeries; onChanged: () 
               onChange={(e) => setFree(Math.max(0, parseInt(e.target.value) || 0))}
               className="w-14 px-2 py-1 rounded-lg bg-deep-space border border-chrome-silver/10 text-chrome-silver text-xs outline-none focus:border-electric-violet"
             />
-            <label className="text-[10px] text-muted-foreground uppercase">🍞/ep</label>
-            <input
-              type="number" min={0} value={price}
-              onChange={(e) => setPrice(Math.max(0, parseInt(e.target.value) || 0))}
-              className="w-14 px-2 py-1 rounded-lg bg-deep-space border border-chrome-silver/10 text-chrome-silver text-xs outline-none focus:border-electric-violet"
-            />
-            {(price !== series.episode_price || free !== series.free_episodes) && (
+            {free !== series.free_episodes && (
               <button onClick={savePricing} className="px-2 py-1 rounded-lg bg-electric-violet/20 text-electric-violet text-xs font-medium">
                 Save
               </button>
@@ -451,7 +443,7 @@ function SeriesCard({ series, onChanged }: { series: AdminSeries; onChanged: () 
           {(episodes?.length ?? 0) > 0 && (
             <p className="text-[10px] text-muted-foreground pt-1 flex items-center gap-1">
               <ChevronRight className="w-3 h-3" />
-              Order = play order. Episodes 1–{series.free_episodes} are free; viewers pay {series.episode_price} 🍞 from episode {series.free_episodes + 1}.
+              Order = play order. Episodes 1–{series.free_episodes} are free; the rest need Dopamine Unlimited.
             </p>
           )}
         </div>
