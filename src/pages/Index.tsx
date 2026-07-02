@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { TopNav } from "@/components/TopNav";
 import { BottomNav } from "@/components/BottomNav";
 import { ChannelSwitcher, Channel } from "@/components/ChannelSwitcher";
-import { FeaturedHero } from "@/components/FeaturedHero";
+import { FeaturedHero, FeaturedSlide } from "@/components/FeaturedHero";
 import { VideoRow } from "@/components/VideoRow";
 import { VideoCardProps } from "@/components/VideoCard";
 import { BreadPurchaseModal } from "@/components/BreadPurchaseModal";
@@ -74,6 +74,22 @@ const Index = () => {
     [seriesList],
   );
 
+  // Admin-featured series drive the hero; fall back to the 3 newest.
+  const heroSlides: FeaturedSlide[] = useMemo(() => {
+    const featured = seriesList
+      .filter((s) => s.featuredAt)
+      .sort((a, b) => new Date(b.featuredAt!).getTime() - new Date(a.featuredAt!).getTime());
+    const pool = featured.length > 0 ? featured : newReleases.slice(0, 3);
+    return pool.map((s) => ({
+      id: s.id,
+      title: s.title,
+      subtitle: `${s.creatorName ?? "Dopamine Original"} · ${episodesBySeries[s.id]?.length ?? 0} episodes`,
+      description: s.description ?? "",
+      backgroundImage: s.coverUrl ?? "",
+      channel: s.channel ?? undefined,
+    }));
+  }, [seriesList, newReleases, episodesBySeries]);
+
   const openSeries = (seriesId: string) => {
     const s = seriesList.find((x) => x.id === seriesId);
     if (s) setPlayingSeries(s);
@@ -87,13 +103,20 @@ const Index = () => {
       />
 
       <main className="pb-28">
-        <FeaturedHero
-          title="NEON QUEENS"
-          subtitle="A New Era of Power"
-          description="Five women. One city. Unlimited ambition. Watch as they redefine what it means to rule in the digital age."
-          backgroundImage={heroFeatured}
-          channel="afropunk"
-        />
+        {heroSlides.length > 0 ? (
+          <FeaturedHero slides={heroSlides} onWatch={openSeries} />
+        ) : (
+          <FeaturedHero
+            slides={[{
+              id: "placeholder",
+              title: "DOPAMINE",
+              subtitle: "Micro Verticals, Maximum Story",
+              description: "Fresh series are on the way. Check back soon.",
+              backgroundImage: heroFeatured,
+              channel: "afropunk",
+            }]}
+          />
+        )}
 
         <div className="sticky top-16 z-40 bg-gradient-to-b from-deep-space via-deep-space to-transparent pt-4 pb-6 px-4">
           <ChannelSwitcher

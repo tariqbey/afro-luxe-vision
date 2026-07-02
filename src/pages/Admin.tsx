@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Film, Upload, ImageIcon, Trash2, Eye, EyeOff, Loader2,
+  Film, Upload, ImageIcon, Trash2, Eye, EyeOff, Loader2, Star,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "@/hooks/use-toast";
@@ -16,6 +16,7 @@ interface AdminSeries {
   cover_url: string | null;
   episode_price: number;
   free_episodes: number;
+  featured_at: string | null;
   episodeCount: number;
 }
 
@@ -25,7 +26,7 @@ async function fetchAdminSeries(): Promise<AdminSeries[]> {
   if (!supabase) return [];
   const { data, error } = await supabase
     .from("series")
-    .select("id, title, status, channel, cover_url, episode_price, free_episodes, episodes(count)")
+    .select("id, title, status, channel, cover_url, episode_price, free_episodes, featured_at, episodes(count)")
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []).map((s) => ({
@@ -138,6 +139,22 @@ function SeriesCard({ series, onChanged }: { series: AdminSeries; onChanged: () 
       toast({ title: "Cover updated", description: series.title });
     });
 
+  const toggleFeatured = () =>
+    run(series.featured_at ? "Unfeature" : "Feature", async () => {
+      if (!series.featured_at && series.status !== "published") {
+        throw new Error("Publish the series first — only live series can be featured.");
+      }
+      const { error } = await supabase!
+        .from("series")
+        .update({ featured_at: series.featured_at ? null : new Date().toISOString() })
+        .eq("id", series.id);
+      if (error) throw error;
+      toast({
+        title: series.featured_at ? "Removed from hero" : "Featured on home hero ⭐",
+        description: series.title,
+      });
+    });
+
   const togglePublish = () =>
     run(series.status === "published" ? "Unpublish" : "Publish", async () => {
       if (series.status !== "published" && series.episodeCount === 0) {
@@ -193,6 +210,11 @@ function SeriesCard({ series, onChanged }: { series: AdminSeries; onChanged: () 
             )}>
               {series.status}
             </span>
+            {series.featured_at && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-electric-violet/20 text-electric-violet flex items-center gap-1">
+                <Star className="w-2.5 h-2.5 fill-current" /> Featured
+              </span>
+            )}
           </div>
           <p className="text-xs text-muted-foreground">
             {series.channel?.toUpperCase() ?? "NO CHANNEL"} · {series.episodeCount} episode{series.episodeCount === 1 ? "" : "s"}
@@ -250,6 +272,12 @@ function SeriesCard({ series, onChanged }: { series: AdminSeries; onChanged: () 
           label={series.status === "published" ? "Unpublish" : "Publish"}
           onClick={togglePublish}
           busy={busy === "Publish" || busy === "Unpublish"}
+        />
+        <ActionButton
+          icon={<Star className={cn("w-3.5 h-3.5", series.featured_at && "fill-current text-electric-violet")} />}
+          label={series.featured_at ? "Unfeature" : "Feature"}
+          onClick={toggleFeatured}
+          busy={busy === "Feature" || busy === "Unfeature"}
         />
         <ActionButton
           icon={<Trash2 className="w-3.5 h-3.5" />}

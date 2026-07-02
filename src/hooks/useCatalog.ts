@@ -39,6 +39,7 @@ async function fetchCatalog(): Promise<Catalog> {
     creatorName: (s.profiles as { username?: string } | null)?.username ?? "Creator",
     status: s.status,
     createdAt: s.created_at,
+    featuredAt: s.featured_at ?? null,
   }));
 
   const episodesBySeries: Record<string, Episode[]> = {};

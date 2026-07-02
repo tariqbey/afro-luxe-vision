@@ -14,6 +14,8 @@ export interface Series {
   creatorName?: string;
   status: "draft" | "published" | "archived";
   createdAt: string;
+  /** Set by admin — series appears in the home hero, newest first */
+  featuredAt: string | null;
 }
 
 export interface Episode {
