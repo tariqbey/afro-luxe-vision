@@ -400,7 +400,7 @@ export function EpisodePlayer({
             <span className="inline-block px-2.5 py-1 rounded-md bg-electric-violet/30 text-xs font-medium text-electric-violet">
               {currentEpisode.episodeNumber === 0
                 ? "Trailer"
-                : `Episode ${currentEpisode.episodeNumber} of ${episodes.length}`}
+                : `Episode ${currentEpisode.episodeNumber}`}
             </span>
             {isFreeWindow && currentEpisode.episodeNumber > 0 && (
               <span className="inline-block px-2.5 py-1 rounded-md bg-liquid-gold/20 text-xs font-medium text-liquid-gold">
