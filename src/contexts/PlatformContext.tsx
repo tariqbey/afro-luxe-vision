@@ -101,10 +101,21 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
     refreshEntitlements();
   }, [demoMode, user, refreshEntitlements]);
 
+  // Long-lived tabs/PWAs: re-check entitlements when the app regains focus,
+  // so grants and new subscriptions land without a manual reload.
+  useEffect(() => {
+    if (demoMode) return;
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refreshEntitlements();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [demoMode, refreshEntitlements]);
+
   const isWatchable = useCallback(
     (ep: Episode, series: Series) =>
-      isSubscriber || ep.episodeNumber <= series.freeEpisodes || unlockedIds.has(ep.id),
-    [unlockedIds, isSubscriber],
+      isAdmin || isSubscriber || ep.episodeNumber <= series.freeEpisodes || unlockedIds.has(ep.id),
+    [unlockedIds, isSubscriber, isAdmin],
   );
 
   const subscribe = useCallback(async () => {
