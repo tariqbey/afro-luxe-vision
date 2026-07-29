@@ -196,11 +196,19 @@ export function EpisodePlayer({
     const msg = `${text} ${url}`;
 
     if (channel && channel !== "copy") {
+      // Mobile gets app deep links; desktop gets web equivalents.
+      // No Facebook app ID required — the Messenger deep link opens the app
+      // directly, and desktop falls back to the public sharer dialog.
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       const targets: Record<string, string> = {
         whatsapp: `https://wa.me/?text=${encodeURIComponent(msg)}`,
-        sms: `sms:?&body=${encodeURIComponent(msg)}`,
-        messenger: `https://www.facebook.com/dialog/send?link=${encodeURIComponent(url)}&app_id=291494419107518&redirect_uri=${encodeURIComponent(window.location.origin)}`,
-        // Instagram has no web share intent — copy so they can paste into a DM/story
+        sms: isMobile
+          ? `sms:${/iPhone|iPad|iPod/i.test(navigator.userAgent) ? "&" : "?"}body=${encodeURIComponent(msg)}`
+          : "",
+        messenger: isMobile
+          ? `fb-messenger://share?link=${encodeURIComponent(url)}`
+          : `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`,
+        // Instagram has no share intent on web — copy so they can paste into a DM/story
         instagram: "",
       };
       const target = targets[channel];
@@ -209,7 +217,12 @@ export function EpisodePlayer({
         return true;
       }
       await navigator.clipboard.writeText(msg).catch(() => undefined);
-      toast({ title: "Link copied 🔗", description: "Paste it into your Instagram DM or story." });
+      toast({
+        title: "Link copied 🔗",
+        description: channel === "instagram"
+          ? "Paste it into your Instagram DM or story."
+          : "Paste it into a text to a friend.",
+      });
       return true;
     }
 
