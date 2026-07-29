@@ -122,7 +122,7 @@ export function CommentsSheet({ episodeId, episodeLabel, isOpen, onClose }: Comm
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="absolute inset-x-0 bottom-0 z-50 h-[60%] rounded-t-3xl bg-obsidian border-t border-chrome-silver/10 flex flex-col"
+            className="absolute inset-x-0 bottom-0 z-50 h-[60%] rounded-t-3xl bg-obsidian border-t border-chrome-silver/10 flex flex-col md:max-w-lg md:mx-auto md:border-x"
           >
             <div className="flex justify-center pt-3 pb-2 flex-shrink-0">
               <div className="w-10 h-1 rounded-full bg-chrome-silver/30" />

@@ -36,7 +36,7 @@ export function PremiumUnlockModal({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: "100%" }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="fixed inset-x-0 bottom-0 z-[81] max-h-[85vh] rounded-t-3xl overflow-hidden bg-obsidian border-t-2 border-electric-violet/30"
+            className="fixed inset-x-0 bottom-0 z-[81] max-h-[85vh] rounded-t-3xl overflow-hidden bg-obsidian border-t-2 border-electric-violet/30 md:max-w-md md:mx-auto md:bottom-10 md:rounded-3xl md:border-2"
           >
             {/* Drag Handle */}
             <div className="flex justify-center pt-3 pb-2">

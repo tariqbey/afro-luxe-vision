@@ -60,21 +60,24 @@ export function FeaturedHero({ slides, onWatch, onTrailer, onSave, rotateMs = 70
           exit={{ opacity: 0 }}
           transition={{ duration: 0.5 }}
         >
+          {/* Mobile: art on top, content below.
+              Tablet/desktop: portrait art left (uncropped), content right. */}
+          <div className="lg:flex lg:items-center lg:gap-10 lg:px-12 lg:pt-24 lg:pb-6 lg:max-w-6xl lg:mx-auto">
           {/* Artwork — clean, nothing on top of it */}
-          <div className="relative w-full aspect-[3/4] md:aspect-[16/9]">
+          <div className="relative w-full aspect-[3/4] md:aspect-[4/5] lg:aspect-auto lg:w-auto lg:h-[62vh] lg:flex-shrink-0 lg:rounded-2xl lg:overflow-hidden lg:shadow-2xl">
             <img
               src={slide.backgroundImage}
               alt={slide.title}
-              className="w-full h-full object-cover object-top"
+              className="w-full h-full object-cover object-top lg:object-contain lg:w-auto lg:h-full"
             />
             {/* subtle channel tint at the edges only */}
-            <div className={`absolute inset-0 bg-gradient-to-br ${channelColors[slide.channel ?? "afropunk"]} to-transparent opacity-25 pointer-events-none`} />
-            {/* short fade bridging into the content below */}
-            <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-deep-space to-transparent pointer-events-none" />
+            <div className={`absolute inset-0 bg-gradient-to-br ${channelColors[slide.channel ?? "afropunk"]} to-transparent opacity-25 pointer-events-none lg:hidden`} />
+            {/* short fade bridging into the content below (mobile only) */}
+            <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-deep-space to-transparent pointer-events-none lg:hidden" />
           </div>
 
-          {/* Content — below the art, on the page background */}
-          <div className="relative px-5 -mt-6 pb-2 md:px-12">
+          {/* Content — below the art on mobile, beside it on tablet+ */}
+          <div className="relative px-5 -mt-6 pb-2 md:px-10 lg:px-0 lg:mt-0 lg:flex-1">
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
@@ -117,6 +120,7 @@ export function FeaturedHero({ slides, onWatch, onTrailer, onSave, rotateMs = 70
                 </Button>
               </div>
             </motion.div>
+          </div>
           </div>
         </motion.div>
       </AnimatePresence>

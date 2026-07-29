@@ -157,7 +157,7 @@ export function VideoUploadModal({ isOpen, onClose }: VideoUploadModalProps) {
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="fixed inset-x-0 bottom-0 z-[60] rounded-t-3xl bg-obsidian border-t border-chrome-silver/10 max-h-[90vh] overflow-y-auto"
+            className="fixed inset-x-0 bottom-0 z-[60] rounded-t-3xl bg-obsidian border-t border-chrome-silver/10 max-h-[90vh] overflow-y-auto md:max-w-xl md:mx-auto md:bottom-8 md:rounded-3xl md:border"
           >
             <div className="flex justify-center pt-3 pb-2">
               <div className="w-10 h-1 rounded-full bg-chrome-silver/30" />

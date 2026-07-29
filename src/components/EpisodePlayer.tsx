@@ -222,6 +222,9 @@ export function EpisodePlayer({
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-[70] bg-deep-space"
     >
+      {/* On tablets/desktop the vertical video lives in a centered 9:16
+          column (TikTok-web style) instead of cropping to fill the screen */}
+      <div className="relative h-full w-full mx-auto overflow-hidden md:max-w-[calc(100dvh*9/16)]">
       {/* Swipeable Video Area */}
       <motion.div
         className="absolute inset-0 touch-none"
@@ -440,6 +443,8 @@ export function EpisodePlayer({
       </div>
 
       {/* Bread paywall — appears when a locked episode is reached */}
+      </div>
+
       <PremiumUnlockModal
         isOpen={pendingIndex !== null}
         onClose={() => setPendingIndex(null)}
