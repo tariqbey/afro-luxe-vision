@@ -7,6 +7,9 @@ import {
 import { cn } from "@/lib/utils";
 import { Series, Episode } from "@/lib/types";
 import { usePlatform, SHARES_REQUIRED, SHARE_WINDOW } from "@/contexts/PlatformContext";
+
+/** Meta app "Dopamine" — enables the Messenger send-to-a-friend dialog. */
+const FB_APP_ID = "995651536789114";
 import { PremiumUnlockModal } from "./PremiumUnlockModal";
 import { CommentsSheet } from "./CommentsSheet";
 import { toast } from "@/hooks/use-toast";
@@ -206,8 +209,8 @@ export function EpisodePlayer({
           ? `sms:${/iPhone|iPad|iPod/i.test(navigator.userAgent) ? "&" : "?"}body=${encodeURIComponent(msg)}`
           : "",
         messenger: isMobile
-          ? `fb-messenger://share?link=${encodeURIComponent(url)}`
-          : `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`,
+          ? `fb-messenger://share?link=${encodeURIComponent(url)}&app_id=${FB_APP_ID}`
+          : `https://www.facebook.com/dialog/send?app_id=${FB_APP_ID}&link=${encodeURIComponent(url)}&redirect_uri=${encodeURIComponent(window.location.origin)}`,
         // Instagram has no share intent on web — copy so they can paste into a DM/story
         instagram: "",
       };
