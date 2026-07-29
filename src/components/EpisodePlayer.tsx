@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Series, Episode } from "@/lib/types";
-import { usePlatform } from "@/contexts/PlatformContext";
+import { usePlatform, SHARES_REQUIRED, SHARE_WINDOW } from "@/contexts/PlatformContext";
 import { PremiumUnlockModal } from "./PremiumUnlockModal";
 import { CommentsSheet } from "./CommentsSheet";
 import { toast } from "@/hooks/use-toast";
@@ -22,7 +22,7 @@ interface EpisodePlayerProps {
 export function EpisodePlayer({
   series, episodes, initialEpisodeNumber = 1, isOpen, onClose,
 }: EpisodePlayerProps) {
-  const { isWatchable, saveProgress, savedIds, toggleSaved, subscribe, demoMode } = usePlatform();
+  const { isWatchable, saveProgress, savedIds, toggleSaved, subscribe, demoMode, sharesBySeries, recordShare, referralCode } = usePlatform();
 
   const startIdx = Math.max(0, episodes.findIndex((e) => e.episodeNumber === initialEpisodeNumber));
   const [currentIndex, setCurrentIndex] = useState(startIdx === -1 ? 0 : startIdx);
@@ -182,6 +182,82 @@ export function EpisodePlayer({
   }, [currentIndex, goToIndex]);
 
   const backgroundOpacity = useTransform(dragY, [-200, 0, 200], [0.5, 1, 0.5]);
+
+  /** Invite link carries the referral code so the growth tree is traceable. */
+  const inviteUrl = () => {
+    const base = `${window.location.origin}/?s=${series.id}`;
+    return referralCode ? `${base}&r=${referralCode}` : base;
+  };
+
+  /** Opens a share channel; returns true if an invite plausibly went out. */
+  const doShare = async (channel?: string): Promise<boolean> => {
+    const url = inviteUrl();
+    const text = `Watch ${series.title} on Dopamine — first 5 episodes free`;
+    const msg = `${text} ${url}`;
+
+    if (channel && channel !== "copy") {
+      const targets: Record<string, string> = {
+        whatsapp: `https://wa.me/?text=${encodeURIComponent(msg)}`,
+        sms: `sms:?&body=${encodeURIComponent(msg)}`,
+        messenger: `https://www.facebook.com/dialog/send?link=${encodeURIComponent(url)}&app_id=291494419107518&redirect_uri=${encodeURIComponent(window.location.origin)}`,
+        // Instagram has no web share intent — copy so they can paste into a DM/story
+        instagram: "",
+      };
+      const target = targets[channel];
+      if (target) {
+        window.open(target, "_blank", "noopener");
+        return true;
+      }
+      await navigator.clipboard.writeText(msg).catch(() => undefined);
+      toast({ title: "Link copied 🔗", description: "Paste it into your Instagram DM or story." });
+      return true;
+    }
+
+    if (channel === "copy") {
+      try {
+        await navigator.clipboard.writeText(msg);
+        toast({ title: "Link copied 🔗", description: "Send it to a friend — it counts as an invite." });
+      } catch {
+        toast({ title: "Share this link", description: url });
+      }
+      return true;
+    }
+
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: series.title, text, url });
+        return true;
+      }
+    } catch (err) {
+      if ((err as Error)?.name === "AbortError") return false; // user closed the sheet
+    }
+    try {
+      await navigator.clipboard.writeText(msg);
+      toast({ title: "Link copied 🔗", description: "Send it to a friend — it counts as an invite." });
+      return true;
+    } catch {
+      toast({ title: "Share this link", description: url });
+      return true;
+    }
+  };
+
+  /** Share-wall CTA: invite, count it, and unlock when the target is hit. */
+  const handleShareToUnlock = useCallback(async (channel?: string) => {
+    const shared = await doShare(channel);
+    if (!shared) return;
+    const count = await recordShare(series.id);
+    if (count >= SHARES_REQUIRED && pendingIndex !== null) {
+      const idx = pendingIndex;
+      setPendingIndex(null);
+      setCurrentIndex(idx);
+      setProgress(0);
+      setIsPlaying(true);
+      toast({ title: "Unlocked! 🎉", description: `The next ${SHARE_WINDOW} episodes are yours. Keep watching.` });
+    } else if (count < SHARES_REQUIRED) {
+      toast({ title: `${count} / ${SHARES_REQUIRED} invited`, description: `${SHARES_REQUIRED - count} more to unlock the next ${SHARE_WINDOW} episodes.` });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [series.id, recordShare, pendingIndex, referralCode]);
 
   const handleShare = async () => {
     const url = `${window.location.origin}/?s=${series.id}`;
@@ -452,6 +528,23 @@ export function EpisodePlayer({
         thumbnail={pendingEpisode?.thumbnailUrl ?? series.coverUrl ?? ""}
         subscribing={subscribing}
         onSubscribe={handleSubscribe}
+        variant={
+          pendingEpisode && pendingEpisode.episodeNumber <= series.freeEpisodes + SHARE_WINDOW
+            ? "share"
+            : "subscribe"
+        }
+        shares={sharesBySeries[series.id] ?? 0}
+        sharesRequired={SHARES_REQUIRED}
+        onShare={handleShareToUnlock}
+        onRedeemed={() => {
+          if (pendingIndex !== null) {
+            const idx = pendingIndex;
+            setPendingIndex(null);
+            setCurrentIndex(idx);
+            setProgress(0);
+            setIsPlaying(true);
+          }
+        }}
       />
 
       <CommentsSheet

@@ -9,7 +9,12 @@ const LS = {
   progress: "dopamine.demo.progress",
   saved: "dopamine.saved",
   subscriber: "dopamine.demo.subscriber",
+  shares: "dopamine.shares",
 };
+
+/** Sharing SHARES_REQUIRED times unlocks the SHARE_WINDOW episodes after the free ones. */
+export const SHARES_REQUIRED = 5;
+export const SHARE_WINDOW = 5;
 
 interface PlatformContextValue {
   demoMode: boolean;
@@ -27,6 +32,13 @@ interface PlatformContextValue {
   subscriptionEnd: string | null;
   subscribe: () => Promise<{ ok: boolean; error?: string }>;
   manageSubscription: () => Promise<{ ok: boolean; error?: string }>;
+  /** Redeem a promo code (e.g. UPSCALE) for free Unlimited access. */
+  redeemPromo: (code: string) => Promise<{ ok: boolean; error?: string; days?: number }>;
+  /** Shares recorded per series (share-to-unlock progress). */
+  sharesBySeries: Record<string, number>;
+  recordShare: (seriesId: string) => Promise<number>;
+  /** Short code appended to invite links so the referral tree is traceable. */
+  referralCode: string | null;
   /** Can this episode play right now (subscriber, free window, or legacy unlock)? */
   isWatchable: (ep: Episode, series: Series) => boolean;
   refreshEntitlements: () => Promise<void>;
@@ -60,15 +72,20 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
     demoMode ? readLocal(LS.subscriber, false) : false,
   );
   const [subscriptionEnd, setSubscriptionEnd] = useState<string | null>(null);
+  const [sharesBySeries, setSharesBySeries] = useState<Record<string, number>>(() =>
+    readLocal(LS.shares, {}),
+  );
+  const [referralCode, setReferralCode] = useState<string | null>(null);
 
   const refreshEntitlements = useCallback(async () => {
     if (demoMode || !supabase) return;
     const { data: auth } = await supabase.auth.getUser();
     if (!auth.user) return;
-    const [{ data: unlocks }, { data: saves }, { data: sub }] = await Promise.all([
+    const [{ data: unlocks }, { data: saves }, { data: sub }, { data: shares }] = await Promise.all([
       supabase.from("unlocks").select("episode_id"),
       supabase.from("saved_series").select("series_id"),
       supabase.from("subscriptions").select("status, current_period_end").eq("user_id", auth.user.id).maybeSingle(),
+      supabase.from("share_progress").select("series_id, shares"),
     ]);
     if (unlocks) setUnlockedIds(new Set(unlocks.map((u) => u.episode_id as string)));
     if (saves) setSavedIds(new Set(saves.map((s) => s.series_id as string)));
@@ -77,7 +94,27 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
       (!sub.current_period_end || new Date(sub.current_period_end) > new Date()),
     ));
     setSubscriptionEnd(sub?.current_period_end ?? null);
+    if (shares) {
+      setSharesBySeries(Object.fromEntries(shares.map((s) => [s.series_id as string, s.shares as number])));
+    }
   }, [demoMode]);
+
+  const recordShare = useCallback(async (seriesId: string): Promise<number> => {
+    if (!demoMode && supabase && user) {
+      const { data, error } = await supabase.rpc("record_share", { p_series_id: seriesId });
+      if (!error && data?.ok) {
+        setSharesBySeries((prev) => ({ ...prev, [seriesId]: data.shares }));
+        return data.shares as number;
+      }
+    }
+    // anonymous / demo: device-local counting
+    const all = readLocal<Record<string, number>>(LS.shares, {});
+    const next = (all[seriesId] ?? 0) + 1;
+    all[seriesId] = next;
+    localStorage.setItem(LS.shares, JSON.stringify(all));
+    setSharesBySeries({ ...all });
+    return next;
+  }, [demoMode, user]);
 
   useEffect(() => {
     if (demoMode || !supabase) return;
@@ -93,10 +130,11 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (demoMode || !supabase || !user) return;
-    supabase.from("profiles").select("username, is_admin, is_creator").eq("id", user.id).single()
+    supabase.from("profiles").select("username, is_admin, is_creator, referral_code").eq("id", user.id).single()
       .then(({ data }) => {
         setUsername(data?.username ?? null);
         setIsAdmin(Boolean(data?.is_admin || data?.is_creator));
+        setReferralCode(data?.referral_code ?? null);
       });
     refreshEntitlements();
   }, [demoMode, user, refreshEntitlements]);
@@ -113,9 +151,19 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
   }, [demoMode, refreshEntitlements]);
 
   const isWatchable = useCallback(
-    (ep: Episode, series: Series) =>
-      isAdmin || isSubscriber || ep.episodeNumber <= series.freeEpisodes || unlockedIds.has(ep.id),
-    [unlockedIds, isSubscriber, isAdmin],
+    (ep: Episode, series: Series) => {
+      if (isAdmin || isSubscriber) return true;
+      if (ep.episodeNumber <= series.freeEpisodes) return true;
+      if (unlockedIds.has(ep.id)) return true;
+      // share tier: the SHARE_WINDOW episodes after the free ones open up
+      // once the viewer has shared the series SHARES_REQUIRED times
+      if (
+        ep.episodeNumber <= series.freeEpisodes + SHARE_WINDOW &&
+        (sharesBySeries[series.id] ?? 0) >= SHARES_REQUIRED
+      ) return true;
+      return false;
+    },
+    [unlockedIds, isSubscriber, isAdmin, sharesBySeries],
   );
 
   const subscribe = useCallback(async () => {
@@ -147,6 +195,23 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
     window.location.href = data.url;
     return { ok: true };
   }, [demoMode, user]);
+
+  const redeemPromo = useCallback(async (code: string) => {
+    if (demoMode) {
+      if (code.trim().toUpperCase() === "UPSCALE") {
+        localStorage.setItem(LS.subscriber, "true");
+        setIsSubscriber(true);
+        return { ok: true, days: 30 };
+      }
+      return { ok: false, error: "invalid_code" };
+    }
+    if (!supabase || !user) return { ok: false, error: "not_authenticated" };
+    const { data, error } = await supabase.rpc("redeem_promo", { p_code: code });
+    if (error) return { ok: false, error: "unknown" };
+    if (!data?.ok) return { ok: false, error: data?.error ?? "unknown" };
+    await refreshEntitlements();
+    return { ok: true, days: data.days };
+  }, [demoMode, user, refreshEntitlements]);
 
   const toggleSaved = useCallback(async (seriesId: string) => {
     const isSaved = savedIds.has(seriesId);
@@ -201,7 +266,8 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
     <PlatformContext.Provider
       value={{
         demoMode, loading, user, username, isAdmin, unlockedIds,
-        savedIds, toggleSaved, isSubscriber, subscriptionEnd, subscribe, manageSubscription,
+        savedIds, toggleSaved, isSubscriber, subscriptionEnd, subscribe, manageSubscription, redeemPromo,
+        sharesBySeries, recordShare, referralCode,
         isWatchable, refreshEntitlements, saveProgress, getProgress, signOut,
       }}
     >

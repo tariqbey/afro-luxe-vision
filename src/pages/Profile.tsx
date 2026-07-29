@@ -2,6 +2,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Settings, Edit3, Grid3X3, Heart, BookmarkCheck, ChevronLeft, Camera, Upload, Play, Eye, X, Film, LogIn, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "@/hooks/use-toast";
 import { VideoCardProps } from "@/components/VideoCard";
 import { BottomNav } from "@/components/BottomNav";
 import { VideoUploadModal } from "@/components/VideoUploadModal";
@@ -22,6 +23,24 @@ const Profile = () => {
   const [activeTab, setActiveTab] = useState<"videos" | "liked" | "saved">("videos");
   const [isEditing, setIsEditing] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [promoCode, setPromoCode] = useState("");
+
+  const handleRedeemCode = async () => {
+    if (!promoCode.trim()) return;
+    const result = await platform.redeemPromo(promoCode);
+    if (result.ok) {
+      toast({ title: "Code accepted 🎟️", description: `${result.days ?? 30} days of Dopamine Unlimited unlocked.` });
+      setPromoCode("");
+    } else {
+      const msgs: Record<string, string> = {
+        invalid_code: "That code isn't valid.",
+        code_exhausted: "That code has been fully claimed.",
+        already_redeemed: "You've already used this code.",
+        not_authenticated: "Sign in first, then redeem.",
+      };
+      toast({ title: "Couldn't redeem", description: msgs[result.error ?? ""] ?? "Try again.", variant: "destructive" });
+    }
+  };
   const [username, setUsername] = useState(platform.username ?? "KingCreator");
   const [bio, setBio] = useState("Filmmaker. Storyteller. Culture Architect. 🎬✨");
   const [editUsername, setEditUsername] = useState(username);
@@ -178,6 +197,25 @@ const Profile = () => {
               </motion.button>
             )}
           </div>
+
+          {!platform.isSubscriber && (
+            <div className="mt-3 flex items-center gap-2">
+              <input
+                value={promoCode}
+                onChange={(e) => setPromoCode(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleRedeemCode(); }}
+                placeholder="Have a code?"
+                className="flex-1 px-4 py-2.5 rounded-xl bg-deep-space border border-chrome-silver/15 text-sm text-chrome-silver uppercase tracking-widest outline-none focus:border-liquid-gold placeholder:normal-case placeholder:tracking-normal placeholder:text-muted-foreground"
+              />
+              <button
+                onClick={handleRedeemCode}
+                disabled={!promoCode.trim()}
+                className="px-4 py-2.5 rounded-xl bg-gradient-gold font-display text-xs text-deep-space uppercase tracking-wide disabled:opacity-50"
+              >
+                Redeem
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Account */}

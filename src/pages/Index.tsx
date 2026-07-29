@@ -11,6 +11,7 @@ import { EpisodePlayer } from "@/components/EpisodePlayer";
 import { useCatalog } from "@/hooks/useCatalog";
 import { usePlatform } from "@/contexts/PlatformContext";
 import { Series } from "@/lib/types";
+import { supabase } from "@/lib/supabase";
 import { toast } from "@/hooks/use-toast";
 
 import heroFeatured from "@/assets/hero-featured.jpg";
@@ -56,13 +57,31 @@ const Index = () => {
   const seriesList = catalog?.seriesList ?? [];
   const episodesBySeries = catalog?.episodesBySeries ?? {};
 
-  // Shared links (/?s=<seriesId>) open the series directly
+  // Invite links (/?s=<seriesId>&r=<referralCode>) open the series directly
+  // and greet the recipient by who sent it.
   useEffect(() => {
     const sharedId = searchParams.get("s");
+    const ref = searchParams.get("r");
     if (!sharedId || seriesList.length === 0) return;
     const s = seriesList.find((x) => x.id === sharedId);
     if (s) setPlayingSeries(s);
+
+    if (ref && supabase) {
+      // log the visit for the referral tree, and greet by sender name
+      supabase.rpc("log_referral_visit", { p_code: ref, p_series_id: sharedId })
+        .then(() => undefined, () => undefined);
+      supabase.rpc("referrer_name", { p_code: ref }).then(({ data }) => {
+        if (data) {
+          toast({
+            title: `@${data} sent you a show 🎬`,
+            description: `Watch the first ${s?.freeEpisodes ?? 5} episodes of ${s?.title ?? "this series"} free.`,
+          });
+        }
+      }, () => undefined);
+    }
+
     searchParams.delete("s");
+    searchParams.delete("r");
     setSearchParams(searchParams, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seriesList.length]);
