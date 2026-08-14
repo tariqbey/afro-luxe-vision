@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Series, Episode } from "@/lib/types";
-import { usePlatform, SHARES_REQUIRED, SHARE_WINDOW } from "@/contexts/PlatformContext";
+import { usePlatform, SHARES_REQUIRED, SHARE_WINDOW, SHARE_UNLOCK_ENABLED } from "@/contexts/PlatformContext";
 
 /** Meta app "Dopamine" — enables the Messenger send-to-a-friend dialog. */
 const FB_APP_ID = "995651536789114";
@@ -48,6 +48,18 @@ export function EpisodePlayer({
 
   const currentEpisode = episodes[currentIndex];
   const pendingEpisode = pendingIndex !== null ? episodes[pendingIndex] : null;
+
+  // If access is granted while the paywall is up — promo code redeemed, a
+  // subscription lands, an admin grant — dismiss it and start the episode.
+  // Without this the wall lingers until a manual reload.
+  useEffect(() => {
+    if (pendingIndex === null || !pendingEpisode) return;
+    if (!isWatchable(pendingEpisode, series)) return;
+    setPendingIndex(null);
+    setCurrentIndex(pendingIndex);
+    setProgress(0);
+    setIsPlaying(true);
+  }, [pendingIndex, pendingEpisode, isWatchable, series]);
 
   // Auto-hide controls
   useEffect(() => {
@@ -545,7 +557,9 @@ export function EpisodePlayer({
         subscribing={subscribing}
         onSubscribe={handleSubscribe}
         variant={
-          pendingEpisode && pendingEpisode.episodeNumber <= series.freeEpisodes + SHARE_WINDOW
+          SHARE_UNLOCK_ENABLED &&
+          pendingEpisode &&
+          pendingEpisode.episodeNumber <= series.freeEpisodes + SHARE_WINDOW
             ? "share"
             : "subscribe"
         }

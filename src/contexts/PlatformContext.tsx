@@ -12,7 +12,12 @@ const LS = {
   shares: "dopamine.shares",
 };
 
-/** Sharing SHARES_REQUIRED times unlocks the SHARE_WINDOW episodes after the free ones. */
+/**
+ * Share-to-unlock tier: sharing SHARES_REQUIRED times opens the SHARE_WINDOW
+ * episodes after the free ones. Currently PAUSED — the paywall goes straight
+ * to subscribe (or promo code). Flip the flag to bring the tier back.
+ */
+export const SHARE_UNLOCK_ENABLED = false;
 export const SHARES_REQUIRED = 5;
 export const SHARE_WINDOW = 5;
 
@@ -158,6 +163,7 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
       // share tier: the SHARE_WINDOW episodes after the free ones open up
       // once the viewer has shared the series SHARES_REQUIRED times
       if (
+        SHARE_UNLOCK_ENABLED &&
         ep.episodeNumber <= series.freeEpisodes + SHARE_WINDOW &&
         (sharesBySeries[series.id] ?? 0) >= SHARES_REQUIRED
       ) return true;

@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Settings, Edit3, Grid3X3, Heart, BookmarkCheck, ChevronLeft, Camera, Upload, Play, Eye, X, Film, LogIn, LogOut } from "lucide-react";
+import { Settings, Edit3, Grid3X3, Heart, BookmarkCheck, ChevronLeft, Upload, Play, Eye, X, Film, LogIn, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
 import { VideoCardProps } from "@/components/VideoCard";
 import { BottomNav } from "@/components/BottomNav";
 import { VideoUploadModal } from "@/components/VideoUploadModal";
@@ -41,17 +42,23 @@ const Profile = () => {
       toast({ title: "Couldn't redeem", description: msgs[result.error ?? ""] ?? "Try again.", variant: "destructive" });
     }
   };
-  const [username, setUsername] = useState(platform.username ?? "KingCreator");
-  const [bio, setBio] = useState("Filmmaker. Storyteller. Culture Architect. 🎬✨");
-  const [editUsername, setEditUsername] = useState(username);
-  const [editBio, setEditBio] = useState(bio);
+  const [username, setUsername] = useState(platform.username ?? "");
+  const [bio, setBio] = useState("");
+  const [editUsername, setEditUsername] = useState("");
+  const [editBio, setEditBio] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
-  const stats = [
-    { label: "Videos", value: "42" },
-    { label: "Followers", value: "12.4K" },
-    { label: "Following", value: "328" },
-    { label: "Likes", value: "89K" },
-  ];
+  // Profile loads async — keep local state in sync once it arrives
+  useEffect(() => {
+    if (!supabase || !platform.user) return;
+    supabase.from("profiles").select("username, bio").eq("id", platform.user.id).single()
+      .then(({ data }) => {
+        if (!data) return;
+        setUsername(data.username ?? "");
+        setBio(data.bio ?? "");
+      });
+  }, [platform.user]);
 
   const { data: catalog } = useCatalog();
   const savedSeries: VideoCardProps[] = (catalog?.seriesList ?? [])
@@ -73,7 +80,50 @@ const Profile = () => {
     saved: savedSeries,
   };
 
-  const handleSaveEdit = () => {
+  // Real numbers from this account, not placeholders
+  const watched = Object.keys(
+    JSON.parse(localStorage.getItem("dopamine.demo.progress") ?? "{}"),
+  ).length;
+  const realStats = [
+    { label: "Watching", value: String(watched) },
+    { label: "Saved", value: String(platform.savedIds.size) },
+    { label: "Series", value: String(catalog?.seriesList.length ?? 0) },
+    { label: "Access", value: platform.isSubscriber ? "Full" : "Free" },
+  ];
+
+  /** Persist the edit to the database, not just local state. */
+  const handleSaveEditPersisted = async () => {
+    const name = editUsername.trim();
+    if (!name) {
+      toast({ title: "Pick a username", description: "It can't be empty.", variant: "destructive" });
+      return;
+    }
+    if (!supabase || !platform.user) {
+      toast({ title: "Sign in first", description: "Create an account to save your profile." });
+      return;
+    }
+    setSaving(true);
+    const { error } = await supabase
+      .from("profiles")
+      .update({ username: name, bio: editBio.trim() || null })
+      .eq("id", platform.user.id);
+    setSaving(false);
+    if (error) {
+      const taken = error.code === "23505";
+      toast({
+        title: taken ? "Username taken" : "Couldn't save",
+        description: taken ? "Try a different one." : error.message,
+        variant: "destructive",
+      });
+      return;
+    }
+    setUsername(name);
+    setBio(editBio.trim());
+    setIsEditing(false);
+    toast({ title: "Profile saved" });
+  };
+
+  const handleSaveEditLegacy = () => {
     setUsername(editUsername);
     setBio(editBio);
     setIsEditing(false);
@@ -91,7 +141,11 @@ const Profile = () => {
         >
           <ChevronLeft className="w-6 h-6 text-pure-white" />
         </button>
-        <button className="absolute top-4 right-4 w-10 h-10 rounded-full bg-deep-space/60 backdrop-blur-md flex items-center justify-center z-10">
+        <button
+          onClick={() => setShowSettings(true)}
+          aria-label="Settings"
+          className="absolute top-4 right-4 w-10 h-10 rounded-full bg-deep-space/60 backdrop-blur-md flex items-center justify-center z-10"
+        >
           <Settings className="w-5 h-5 text-chrome-silver" />
         </button>
       </div>
@@ -105,9 +159,7 @@ const Profile = () => {
               alt="Profile"
               className="w-28 h-28 rounded-full object-cover ring-4 ring-deep-space"
             />
-            <button className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-electric-violet flex items-center justify-center">
-              <Camera className="w-4 h-4 text-pure-white" />
-            </button>
+
           </div>
           <div className="flex-1 pb-2">
             <div className="flex items-center gap-2">
@@ -123,7 +175,7 @@ const Profile = () => {
 
         {/* Stats */}
         <div className="flex items-center gap-6 mt-4">
-          {stats.map((stat) => (
+          {realStats.map((stat) => (
             <div key={stat.label} className="text-center">
               <span className="font-accent font-bold text-lg text-pure-white tabular-nums">{stat.value}</span>
               <p className="text-xs text-muted-foreground">{stat.label}</p>
@@ -358,11 +410,12 @@ const Profile = () => {
                   />
                 </div>
                 <motion.button
-                  onClick={handleSaveEdit}
-                  className="w-full py-3.5 rounded-xl bg-gradient-button font-body font-bold text-pure-white"
+                  onClick={handleSaveEditPersisted}
+                  disabled={saving}
+                  className="w-full py-3.5 rounded-xl bg-gradient-button font-body font-bold text-pure-white disabled:opacity-60"
                   whileTap={{ scale: 0.97 }}
                 >
-                  Save Changes
+                  {saving ? "Saving..." : "Save Changes"}
                 </motion.button>
               </div>
             </motion.div>
@@ -371,6 +424,96 @@ const Profile = () => {
       </AnimatePresence>
 
       <VideoUploadModal isOpen={showUploadModal} onClose={() => setShowUploadModal(false)} />
+
+      {/* Settings */}
+      <AnimatePresence>
+        {showSettings && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-deep-space/80 backdrop-blur-sm z-[70]"
+              onClick={() => setShowSettings(false)}
+            />
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              className="fixed inset-x-0 bottom-0 z-[71] rounded-t-3xl bg-obsidian border-t border-chrome-silver/10 px-6 pt-3 pb-8 md:max-w-md md:mx-auto md:bottom-8 md:rounded-3xl md:border"
+            >
+              <div className="flex justify-center pb-4">
+                <div className="w-10 h-1 rounded-full bg-chrome-silver/30" />
+              </div>
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="font-display text-xl text-pure-white">Settings</h2>
+                <button onClick={() => setShowSettings(false)} aria-label="Close">
+                  <X className="w-6 h-6 text-chrome-silver" />
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <div className="rounded-xl bg-deep-space border border-chrome-silver/10 px-4 py-3">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Signed in as</p>
+                  <p className="text-sm text-chrome-silver mt-0.5 truncate">
+                    {platform.user?.email ?? "Not signed in"}
+                  </p>
+                </div>
+
+                <div className="rounded-xl bg-deep-space border border-chrome-silver/10 px-4 py-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Membership</p>
+                    <p className="text-sm text-chrome-silver mt-0.5">
+                      {platform.isSubscriber ? "👑 Unlimited — all episodes" : "Free — first 5 episodes"}
+                    </p>
+                  </div>
+                  {platform.isSubscriber ? (
+                    <button
+                      onClick={() => platform.manageSubscription()}
+                      className="px-3 py-2 rounded-lg border border-chrome-silver/20 text-xs text-chrome-silver flex-shrink-0"
+                    >
+                      Manage
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => platform.subscribe()}
+                      className="px-3 py-2 rounded-lg bg-gradient-button text-xs font-bold text-pure-white flex-shrink-0"
+                    >
+                      Upgrade
+                    </button>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => { setShowSettings(false); setEditUsername(username); setEditBio(bio); setIsEditing(true); }}
+                  className="w-full rounded-xl bg-deep-space border border-chrome-silver/10 px-4 py-3.5 text-left text-sm text-chrome-silver flex items-center gap-3"
+                >
+                  <Edit3 className="w-4 h-4 text-electric-violet" /> Edit profile
+                </button>
+
+                {platform.user ? (
+                  <button
+                    onClick={async () => { await platform.signOut(); setShowSettings(false); navigate("/"); }}
+                    className="w-full rounded-xl bg-deep-space border border-destructive/30 px-4 py-3.5 text-left text-sm text-destructive flex items-center gap-3"
+                  >
+                    <LogOut className="w-4 h-4" /> Sign out
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => { setShowSettings(false); navigate("/auth"); }}
+                    className="w-full rounded-xl bg-gradient-button px-4 py-3.5 text-sm font-bold text-pure-white flex items-center justify-center gap-2"
+                  >
+                    <LogIn className="w-4 h-4" /> Sign in
+                  </button>
+                )}
+              </div>
+
+              <p className="text-center text-[11px] text-muted-foreground mt-5">Dopamine · v1.0</p>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
