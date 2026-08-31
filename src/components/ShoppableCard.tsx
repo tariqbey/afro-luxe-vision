@@ -1,50 +1,34 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ShoppingBag, X, ExternalLink } from "lucide-react";
+import { X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { Product } from "@/lib/types";
 
 interface ShoppableCardProps {
   products: Product[];
   sponsorName?: string | null;
-  /** Seconds into the episode — the card reveals itself a beat in. */
+  /** Seconds into the episode — the rail holds off until REVEAL_AT. */
   currentTime: number;
   /** Reset the reveal when the episode changes. */
   episodeId: string;
 }
 
-const REVEAL_AT = 3; // seconds
+const REVEAL_AT = 30; // seconds — let the scene play before selling
 
 /**
- * Shoppable overlay for sponsored episodes: a product card slides in over the
- * video, tapping it opens the brand's page. Clicks are logged so the sponsor
- * can be shown real numbers.
+ * Shoppable rail for sponsored episodes. Sits along the right edge above the
+ * engagement buttons, deliberately narrow so the frame stays watchable.
+ * Tapping an item opens the brand's page; clicks are logged for the sponsor.
  */
 export function ShoppableCard({ products, sponsorName, currentTime, episodeId }: ShoppableCardProps) {
   const [dismissed, setDismissed] = useState(false);
-  const [expanded, setExpanded] = useState(false);
-  const [index, setIndex] = useState(0);
 
-  // new episode → fresh card
-  useEffect(() => {
-    setDismissed(false);
-    setExpanded(false);
-    setIndex(0);
-  }, [episodeId]);
-
-  // rotate through multiple products every 8s while collapsed
-  useEffect(() => {
-    if (products.length < 2 || expanded) return;
-    const t = setInterval(() => setIndex((i) => (i + 1) % products.length), 8000);
-    return () => clearInterval(t);
-  }, [products.length, expanded]);
+  useEffect(() => setDismissed(false), [episodeId]);
 
   if (products.length === 0 || dismissed) return null;
   const visible = currentTime >= REVEAL_AT;
-  const product = products[Math.min(index, products.length - 1)];
 
   const open = async (p: Product) => {
-    // fire-and-forget attribution
     if (supabase) {
       const { data: auth } = await supabase.auth.getUser();
       supabase.from("product_clicks")
@@ -58,102 +42,59 @@ export function ShoppableCard({ products, sponsorName, currentTime, episodeId }:
     <AnimatePresence>
       {visible && (
         <motion.div
-          initial={{ opacity: 0, x: -40 }}
+          initial={{ opacity: 0, x: 30 }}
           animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -40 }}
-          transition={{ type: "spring", stiffness: 260, damping: 26 }}
-          className="absolute left-3 bottom-44 z-30 max-w-[calc(100%-5.5rem)]"
+          exit={{ opacity: 0, x: 30 }}
+          transition={{ type: "spring", stiffness: 260, damping: 28 }}
+          className="absolute right-2 top-14 z-30 w-[38%] max-w-[165px]"
         >
-          {/* sponsor tag — disclosure matters, and it sells the partnership */}
-          {sponsorName && (
-            <div className="mb-1.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-deep-space/80 backdrop-blur-sm border border-liquid-gold/30">
-              <ShoppingBag className="w-3 h-3 text-liquid-gold" />
-              <span className="text-[10px] font-medium text-liquid-gold uppercase tracking-wide">
-                Shop {sponsorName}
+          <div className="rounded-2xl bg-deep-space/75 backdrop-blur-md border border-chrome-silver/10 overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-2.5 py-1.5">
+              <span className="text-[9px] text-chrome-silver/90 truncate leading-tight">
+                Sponsored{sponsorName ? ` · ${sponsorName}` : ""}
               </span>
-            </div>
-          )}
-
-          {expanded ? (
-            /* Expanded: full list of everything worn in this episode */
-            <motion.div
-              layout
-              className="w-72 rounded-2xl bg-obsidian/95 backdrop-blur-md border border-chrome-silver/15 overflow-hidden shadow-2xl"
-            >
-              <div className="flex items-center justify-between px-3 py-2 border-b border-chrome-silver/10">
-                <span className="text-xs font-bold text-pure-white uppercase tracking-wide">
-                  In this episode
-                </span>
-                <button onClick={() => setExpanded(false)} aria-label="Collapse">
-                  <X className="w-4 h-4 text-chrome-silver" />
-                </button>
-              </div>
-              <div className="max-h-64 overflow-y-auto divide-y divide-chrome-silver/10">
-                {products.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => open(p)}
-                    className="w-full flex items-center gap-3 p-2.5 text-left hover:bg-deep-space/60 transition-colors"
-                  >
-                    {p.imageUrl && (
-                      <img src={p.imageUrl} alt={p.name} className="w-12 h-16 rounded-lg object-cover flex-shrink-0" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-pure-white truncate">{p.name}</p>
-                      {p.price && <p className="text-[11px] text-liquid-gold mt-0.5">{p.price}</p>}
-                    </div>
-                    <ExternalLink className="w-3.5 h-3.5 text-electric-violet flex-shrink-0" />
-                  </button>
-                ))}
-              </div>
-            </motion.div>
-          ) : (
-            /* Collapsed: single rotating product */
-            <motion.div layout className="flex items-center gap-2">
-              <motion.button
-                key={product.id}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                onClick={() => open(product)}
-                className="flex items-center gap-2.5 p-2 pr-3 rounded-2xl bg-obsidian/95 backdrop-blur-md border border-chrome-silver/15 shadow-2xl"
-                whileTap={{ scale: 0.97 }}
+              <button
+                onClick={() => setDismissed(true)}
+                aria-label="Hide products"
+                className="flex-shrink-0 ml-1"
               >
-                {product.imageUrl && (
-                  <img
-                    src={product.imageUrl}
-                    alt={product.name}
-                    className="w-11 h-14 rounded-xl object-cover flex-shrink-0"
-                  />
-                )}
-                <div className="text-left min-w-0 max-w-[9rem]">
-                  <p className="text-xs font-semibold text-pure-white truncate">{product.name}</p>
-                  <p className="text-[11px] text-liquid-gold mt-0.5 flex items-center gap-1">
-                    {product.price ?? "Shop now"}
-                    <ExternalLink className="w-3 h-3" />
-                  </p>
-                </div>
-              </motion.button>
+                <X className="w-3 h-3 text-chrome-silver/60" />
+              </button>
+            </div>
 
-              <div className="flex flex-col gap-1.5">
-                {products.length > 1 && (
-                  <button
-                    onClick={() => setExpanded(true)}
-                    className="w-7 h-7 rounded-full bg-obsidian/90 border border-chrome-silver/15 flex items-center justify-center"
-                    aria-label="See all products"
-                  >
-                    <span className="text-[10px] font-bold text-liquid-gold">+{products.length - 1}</span>
-                  </button>
-                )}
-                <button
-                  onClick={() => setDismissed(true)}
-                  className="w-7 h-7 rounded-full bg-obsidian/90 border border-chrome-silver/15 flex items-center justify-center"
-                  aria-label="Hide"
+            {/* Product rail — scrolls if the episode has a lot of looks */}
+            <div className="max-h-[40vh] overflow-y-auto scrollbar-hide px-1.5 pb-1.5 space-y-1.5">
+              {products.map((p) => (
+                <div
+                  key={p.id}
+                  className="rounded-xl bg-obsidian/80 border border-chrome-silver/10 p-1.5 flex gap-2"
                 >
-                  <X className="w-3.5 h-3.5 text-chrome-silver" />
-                </button>
-              </div>
-            </motion.div>
-          )}
+                  {p.imageUrl && (
+                    <button onClick={() => open(p)} className="flex-shrink-0">
+                      <img
+                        src={p.imageUrl}
+                        alt={p.name}
+                        className="w-11 h-[3.6rem] rounded-lg object-cover"
+                      />
+                    </button>
+                  )}
+                  <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
+                    <p className="text-[10px] leading-tight text-pure-white line-clamp-2">
+                      {p.name}
+                    </p>
+                    <motion.button
+                      onClick={() => open(p)}
+                      className="mt-1 w-full py-1 rounded-md bg-pure-white/95 text-[9px] font-semibold text-deep-space"
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      Add to Cart
+                    </motion.button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </motion.div>
       )}
     </AnimatePresence>
