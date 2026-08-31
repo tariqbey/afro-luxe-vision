@@ -22,7 +22,7 @@ const Index = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: catalog, isLoading } = useCatalog();
-  const { user, isSubscriber, subscribe, refreshEntitlements, getProgress, savedIds, toggleSaved } = usePlatform();
+  const { user, demoMode, isSubscriber, subscribe, refreshEntitlements, getProgress, savedIds, toggleSaved } = usePlatform();
 
   const [activeChannel, setActiveChannel] = useState<Channel>("all");
   const [activeTab, setActiveTab] = useState("home");
@@ -138,9 +138,20 @@ const Index = () => {
     if (s?.trailerUrl) setTrailerSeries(s);
   };
 
+  /** Watching requires an account — that's what carries the shopping list,
+   *  watch progress, and subscription. Trailers stay open as the hook. */
   const openSeries = (seriesId: string) => {
     const s = seriesList.find((x) => x.id === seriesId);
-    if (s) setPlayingSeries(s);
+    if (!s) return;
+    if (!demoMode && !user) {
+      toast({
+        title: "Create a free account to watch",
+        description: "It saves your place, your list, and your access.",
+      });
+      navigate("/auth");
+      return;
+    }
+    setPlayingSeries(s);
   };
 
   return (

@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { X, Check, Heart } from "lucide-react";
+import { usePlatform } from "@/contexts/PlatformContext";
+import { toast } from "@/hooks/use-toast";
 import { Product } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 interface ShoppableCardProps {
   products: Product[];
@@ -24,6 +26,7 @@ const HIDE_BEFORE_END = 10; // seconds — clear out so the ending lands clean
  * Tapping an item opens the brand's page; clicks are logged for the sponsor.
  */
 export function ShoppableCard({ products, sponsorName, currentTime, duration, episodeId }: ShoppableCardProps) {
+  const { favoriteProductIds, toggleFavoriteProduct } = usePlatform();
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => setDismissed(false), [episodeId]);
@@ -36,14 +39,16 @@ export function ShoppableCard({ products, sponsorName, currentTime, duration, ep
   const visible =
     hideAt > REVEAL_AT && currentTime >= REVEAL_AT && currentTime < hideAt;
 
-  const open = async (p: Product) => {
-    if (supabase) {
-      const { data: auth } = await supabase.auth.getUser();
-      supabase.from("product_clicks")
-        .insert({ product_id: p.id, user_id: auth?.user?.id ?? null })
-        .then(() => undefined, () => undefined);
+  const save = async (p: Product) => {
+    const result = await toggleFavoriteProduct(p.id);
+    if (result === "signin") {
+      toast({ title: "Sign in to save", description: "Your shopping list lives in your profile." });
+      return;
     }
-    window.open(p.productUrl, "_blank", "noopener,noreferrer");
+    toast({
+      title: result === "added" ? "Saved to your list ♥" : "Removed from your list",
+      description: result === "added" ? `${p.name} — find it in your profile.` : undefined,
+    });
   };
 
   return (
@@ -73,34 +78,44 @@ export function ShoppableCard({ products, sponsorName, currentTime, duration, ep
 
             {/* Product rail — scrolls if the episode has a lot of looks */}
             <div className="max-h-[36vh] overflow-y-auto scrollbar-hide px-1.5 pb-1.5 space-y-1.5">
-              {products.map((p) => (
-                <div
-                  key={p.id}
-                  className="rounded-xl bg-obsidian/80 border border-chrome-silver/10 p-1.5 flex gap-2"
-                >
-                  {p.imageUrl && (
-                    <button onClick={() => open(p)} className="flex-shrink-0">
-                      <img
-                        src={p.imageUrl}
-                        alt={p.name}
-                        className="w-11 h-[3.6rem] rounded-lg object-cover"
-                      />
-                    </button>
-                  )}
-                  <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
-                    <p className="text-[10px] leading-tight text-pure-white line-clamp-2">
-                      {p.name}
-                    </p>
-                    <motion.button
-                      onClick={() => open(p)}
-                      className="mt-1 w-full py-1 rounded-md bg-pure-white/95 text-[9px] font-semibold text-deep-space"
-                      whileTap={{ scale: 0.95 }}
-                    >
-                      Add to Cart
-                    </motion.button>
+              {products.map((p) => {
+                const saved = favoriteProductIds.has(p.id);
+                return (
+                  <div
+                    key={p.id}
+                    className="rounded-xl bg-obsidian/80 border border-chrome-silver/10 p-1.5 flex gap-2"
+                  >
+                    {p.imageUrl && (
+                      <button onClick={() => save(p)} className="flex-shrink-0">
+                        <img
+                          src={p.imageUrl}
+                          alt={p.name}
+                          className="w-11 h-[3.6rem] rounded-lg object-cover"
+                        />
+                      </button>
+                    )}
+                    <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
+                      <p className="text-[10px] leading-tight text-pure-white line-clamp-2">
+                        {p.name}
+                      </p>
+                      <motion.button
+                        onClick={() => save(p)}
+                        className={cn(
+                          "mt-1 w-full py-1 rounded-md text-[9px] font-semibold flex items-center justify-center gap-1",
+                          saved
+                            ? "bg-liquid-gold/20 text-liquid-gold border border-liquid-gold/40"
+                            : "bg-pure-white/95 text-deep-space"
+                        )}
+                        whileTap={{ scale: 0.95 }}
+                      >
+                        {saved
+                          ? (<><Check className="w-2.5 h-2.5" /> Saved</>)
+                          : (<><Heart className="w-2.5 h-2.5" /> Add to Favorites</>)}
+                      </motion.button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </motion.div>

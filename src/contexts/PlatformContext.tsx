@@ -44,6 +44,9 @@ interface PlatformContextValue {
   recordShare: (seriesId: string) => Promise<number>;
   /** Short code appended to invite links so the referral tree is traceable. */
   referralCode: string | null;
+  /** Products the viewer saved from sponsored episodes (their shopping list). */
+  favoriteProductIds: Set<string>;
+  toggleFavoriteProduct: (productId: string) => Promise<"added" | "removed" | "signin">;
   /** Can this episode play right now (subscriber, free window, or legacy unlock)? */
   isWatchable: (ep: Episode, series: Series) => boolean;
   refreshEntitlements: () => Promise<void>;
@@ -81,16 +84,18 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
     readLocal(LS.shares, {}),
   );
   const [referralCode, setReferralCode] = useState<string | null>(null);
+  const [favoriteProductIds, setFavoriteProductIds] = useState<Set<string>>(new Set());
 
   const refreshEntitlements = useCallback(async () => {
     if (demoMode || !supabase) return;
     const { data: auth } = await supabase.auth.getUser();
     if (!auth.user) return;
-    const [{ data: unlocks }, { data: saves }, { data: sub }, { data: shares }] = await Promise.all([
+    const [{ data: unlocks }, { data: saves }, { data: sub }, { data: shares }, { data: favs }] = await Promise.all([
       supabase.from("unlocks").select("episode_id"),
       supabase.from("saved_series").select("series_id"),
       supabase.from("subscriptions").select("status, current_period_end").eq("user_id", auth.user.id).maybeSingle(),
       supabase.from("share_progress").select("series_id, shares"),
+      supabase.from("product_favorites").select("product_id"),
     ]);
     if (unlocks) setUnlockedIds(new Set(unlocks.map((u) => u.episode_id as string)));
     if (saves) setSavedIds(new Set(saves.map((s) => s.series_id as string)));
@@ -102,7 +107,24 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
     if (shares) {
       setSharesBySeries(Object.fromEntries(shares.map((s) => [s.series_id as string, s.shares as number])));
     }
+    if (favs) setFavoriteProductIds(new Set(favs.map((f) => f.product_id as string)));
   }, [demoMode]);
+
+  const toggleFavoriteProduct = useCallback(async (productId: string) => {
+    if (!supabase || !user) return "signin" as const;
+    const saved = favoriteProductIds.has(productId);
+    const next = new Set(favoriteProductIds);
+    if (saved) next.delete(productId); else next.add(productId);
+    setFavoriteProductIds(next);
+    if (saved) {
+      await supabase.from("product_favorites").delete()
+        .eq("user_id", user.id).eq("product_id", productId);
+      return "removed" as const;
+    }
+    await supabase.from("product_favorites")
+      .upsert({ user_id: user.id, product_id: productId });
+    return "added" as const;
+  }, [favoriteProductIds, user]);
 
   const recordShare = useCallback(async (seriesId: string): Promise<number> => {
     if (!demoMode && supabase && user) {
@@ -266,6 +288,7 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
     setUnlockedIds(new Set());
     setIsSubscriber(demoMode ? readLocal(LS.subscriber, false) : false);
     setSubscriptionEnd(null);
+    setFavoriteProductIds(new Set());
   }, [demoMode]);
 
   return (
@@ -273,7 +296,7 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
       value={{
         demoMode, loading, user, username, isAdmin, unlockedIds,
         savedIds, toggleSaved, isSubscriber, subscriptionEnd, subscribe, manageSubscription, redeemPromo,
-        sharesBySeries, recordShare, referralCode,
+        sharesBySeries, recordShare, referralCode, favoriteProductIds, toggleFavoriteProduct,
         isWatchable, refreshEntitlements, saveProgress, getProgress, signOut,
       }}
     >

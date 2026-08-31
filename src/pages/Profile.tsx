@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Settings, Edit3, Grid3X3, Heart, BookmarkCheck, ChevronLeft, Upload, Play, Eye, X, Film, LogIn, LogOut } from "lucide-react";
+import { Settings, Edit3, Grid3X3, Heart, BookmarkCheck, ChevronLeft, Upload, Play, Eye, X, Film, LogIn, LogOut, ShoppingBag, ExternalLink, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
+import { useQuery } from "@tanstack/react-query";
 import { VideoCardProps } from "@/components/VideoCard";
 import { BottomNav } from "@/components/BottomNav";
 import { VideoUploadModal } from "@/components/VideoUploadModal";
@@ -59,6 +60,41 @@ const Profile = () => {
         setBio(data.bio ?? "");
       });
   }, [platform.user]);
+
+  const { data: favorites, refetch: refetchFavorites } = useQuery({
+    queryKey: ["my-favorites", platform.user?.id],
+    enabled: Boolean(platform.user && supabase),
+    queryFn: async () => {
+      const { data, error } = await supabase!
+        .from("product_favorites")
+        .select("product_id, created_at, products(id, name, price, image_url, product_url, brand)")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      type Row = {
+        id: string; name: string; price: string | null;
+        image_url: string | null; product_url: string; brand: string | null;
+      };
+      // PostgREST types the embed loosely; flatten and narrow once here
+      return (data ?? [])
+        .flatMap((r) => (Array.isArray(r.products) ? r.products : [r.products]))
+        .filter(Boolean) as unknown as Row[];
+    },
+  });
+
+  /** Open the brand page and log the click for sponsor reporting. */
+  const openProduct = async (p: { id: string; product_url: string }) => {
+    if (supabase) {
+      supabase.from("product_clicks")
+        .insert({ product_id: p.id, user_id: platform.user?.id ?? null })
+        .then(() => undefined, () => undefined);
+    }
+    window.open(p.product_url, "_blank", "noopener,noreferrer");
+  };
+
+  const removeFavorite = async (id: string) => {
+    await platform.toggleFavoriteProduct(id);
+    refetchFavorites();
+  };
 
   const { data: catalog } = useCatalog();
   const savedSeries: VideoCardProps[] = (catalog?.seriesList ?? [])
@@ -289,6 +325,52 @@ const Profile = () => {
           )}
         </div>
       </div>
+
+      {/* Shopping List */}
+      {(favorites?.length ?? 0) > 0 && (
+        <div className="px-4 mt-5">
+          <div className="rounded-2xl border border-liquid-gold/25 bg-gradient-to-br from-obsidian to-deep-space p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <ShoppingBag className="w-4 h-4 text-liquid-gold" />
+              <h2 className="font-display text-sm text-pure-white uppercase tracking-wide">
+                My Shopping List
+              </h2>
+              <span className="text-xs text-muted-foreground">({favorites!.length})</span>
+            </div>
+            <div className="space-y-2">
+              {favorites!.map((p) => (
+                <div key={p.id} className="flex items-center gap-3 rounded-xl bg-deep-space p-2">
+                  <button onClick={() => openProduct(p)} className="flex-shrink-0">
+                    {p.image_url ? (
+                      <img src={p.image_url} alt={p.name} className="w-12 h-16 rounded-lg object-cover" />
+                    ) : (
+                      <div className="w-12 h-16 rounded-lg bg-obsidian flex items-center justify-center">
+                        <ShoppingBag className="w-4 h-4 text-muted-foreground" />
+                      </div>
+                    )}
+                  </button>
+                  <button onClick={() => openProduct(p)} className="flex-1 min-w-0 text-left">
+                    <p className="text-sm text-pure-white truncate">{p.name}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {p.brand ?? "Shop"}{p.price ? ` · ${p.price}` : ""}
+                    </p>
+                    <span className="text-[11px] text-liquid-gold mt-1 inline-flex items-center gap-1">
+                      Buy now <ExternalLink className="w-3 h-3" />
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => removeFavorite(p.id)}
+                    aria-label="Remove"
+                    className="text-destructive/60 flex-shrink-0 p-1"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="mt-6 border-b border-border">
