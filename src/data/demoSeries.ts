@@ -46,6 +46,7 @@ export const demoSeries: Series[] = [
     featuredAt: new Date("2026-06-29").toISOString(),
     trailerUrl: "/demo/clip-1.mp4",
     sponsorName: null,
+    sponsorLogoUrl: null,
   },
   {
     id: "demo-golden-hour",
@@ -62,6 +63,7 @@ export const demoSeries: Series[] = [
     featuredAt: null,
     trailerUrl: null,
     sponsorName: null,
+    sponsorLogoUrl: null,
   },
   {
     id: "demo-operation-freedom",
@@ -78,6 +80,7 @@ export const demoSeries: Series[] = [
     featuredAt: new Date("2026-06-30").toISOString(),
     trailerUrl: null,
     sponsorName: null,
+    sponsorLogoUrl: null,
   },
   {
     id: "demo-lol-live",
@@ -94,6 +97,7 @@ export const demoSeries: Series[] = [
     featuredAt: null,
     trailerUrl: null,
     sponsorName: null,
+    sponsorLogoUrl: null,
   },
   {
     id: "demo-boss-moves",
@@ -110,6 +114,7 @@ export const demoSeries: Series[] = [
     featuredAt: null,
     trailerUrl: null,
     sponsorName: null,
+    sponsorLogoUrl: null,
   },
   {
     id: "demo-neon-dreams",
@@ -126,6 +131,7 @@ export const demoSeries: Series[] = [
     featuredAt: null,
     trailerUrl: null,
     sponsorName: null,
+    sponsorLogoUrl: null,
   },
 ];
 

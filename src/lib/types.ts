@@ -20,6 +20,8 @@ export interface Series {
   trailerUrl: string | null;
   /** Brand name when this series is sponsored; null = normal paid content */
   sponsorName: string | null;
+  /** Sponsor's logo, shown on the Sponsored Series rail */
+  sponsorLogoUrl: string | null;
 }
 
 export interface Product {

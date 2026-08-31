@@ -6,6 +6,7 @@ import { BottomNav } from "@/components/BottomNav";
 import { ChannelSwitcher, Channel } from "@/components/ChannelSwitcher";
 import { FeaturedHero, FeaturedSlide } from "@/components/FeaturedHero";
 import { VideoRow } from "@/components/VideoRow";
+import { SponsoredRow } from "@/components/SponsoredRow";
 import { VideoCardProps } from "@/components/VideoCard";
 import { EpisodePlayer } from "@/components/EpisodePlayer";
 import { useCatalog } from "@/hooks/useCatalog";
@@ -102,6 +103,15 @@ const Index = () => {
 
   const filterByChannel = (list: Series[]) =>
     activeChannel === "all" ? list : list.filter((s) => s.channel === activeChannel);
+
+  const sponsoredSeries = useMemo(
+    () => seriesList.filter((s) => s.sponsorName),
+    [seriesList],
+  );
+  const episodeCounts = useMemo(
+    () => Object.fromEntries(seriesList.map((s) => [s.id, episodesBySeries[s.id]?.length ?? 0])),
+    [seriesList, episodesBySeries],
+  );
 
   const continueWatchingSeries = useMemo(
     () => seriesList.filter((s) => getProgress(s.id) !== null),
@@ -210,6 +220,14 @@ const Index = () => {
                   };
                 })}
                 onVideoClick={openSeries}
+              />
+            )}
+
+            {activeChannel === "all" && sponsoredSeries.length > 0 && (
+              <SponsoredRow
+                series={sponsoredSeries}
+                episodeCounts={episodeCounts}
+                onSeriesClick={openSeries}
               />
             )}
 

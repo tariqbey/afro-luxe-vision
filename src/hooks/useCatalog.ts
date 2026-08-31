@@ -45,6 +45,7 @@ async function fetchCatalog(): Promise<Catalog> {
     featuredAt: s.featured_at ?? null,
     trailerUrl: s.trailer_url ?? null,
     sponsorName: s.sponsor_name ?? null,
+    sponsorLogoUrl: s.sponsor_logo_url ?? null,
   }));
 
   const episodesBySeries: Record<string, Episode[]> = {};

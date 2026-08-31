@@ -19,6 +19,7 @@ interface AdminSeries {
   featured_at: string | null;
   trailer_url: string | null;
   sponsor_name: string | null;
+  sponsor_logo_url: string | null;
   episodeCount: number;
 }
 
@@ -45,7 +46,7 @@ async function fetchAdminSeries(): Promise<AdminSeries[]> {
   if (!supabase) return [];
   const { data, error } = await supabase
     .from("series")
-    .select("id, title, status, channel, cover_url, free_episodes, featured_at, trailer_url, sponsor_name, episodes(count)")
+    .select("id, title, status, channel, cover_url, free_episodes, featured_at, trailer_url, sponsor_name, sponsor_logo_url, episodes(count)")
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []).map((s) => ({
@@ -102,6 +103,7 @@ function SeriesCard({ series, onChanged }: { series: AdminSeries; onChanged: () 
   const episodesInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
   const trailerInputRef = useRef<HTMLInputElement>(null);
+  const sponsorLogoRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 
   const { data: episodes } = useQuery({
@@ -264,6 +266,17 @@ function SeriesCard({ series, onChanged }: { series: AdminSeries; onChanged: () 
       });
     });
 
+  const uploadSponsorLogo = (file: File) =>
+    run("Sponsor logo", async () => {
+      const path = `${series.id}/sponsor-${Date.now()}-${safeName(file.name)}`;
+      const { error } = await supabase!.storage.from("covers").upload(path, file);
+      if (error) throw error;
+      const url = supabase!.storage.from("covers").getPublicUrl(path).data.publicUrl;
+      const { error: uErr } = await supabase!.from("series").update({ sponsor_logo_url: url }).eq("id", series.id);
+      if (uErr) throw uErr;
+      toast({ title: "Sponsor logo updated", description: series.sponsor_name ?? series.title });
+    });
+
   const addProduct = (ep: AdminEpisode, name: string, url: string, price: string, imageUrl: string) =>
     run("Add product", async () => {
       const existing = (products ?? []).filter((p) => p.episode_id === ep.id).length;
@@ -406,6 +419,19 @@ function SeriesCard({ series, onChanged }: { series: AdminSeries; onChanged: () 
                 Save
               </button>
             )}
+            {series.sponsor_name && (
+              <button
+                onClick={() => sponsorLogoRef.current?.click()}
+                title="Upload sponsor logo"
+                className="px-2 py-1 rounded-lg border border-chrome-silver/20 text-chrome-silver text-xs flex-shrink-0 flex items-center gap-1"
+              >
+                {series.sponsor_logo_url ? (
+                  <img src={series.sponsor_logo_url} alt="" className="h-3 max-w-[3.5rem] object-contain" />
+                ) : (
+                  <><ImageIcon className="w-3 h-3" /> Logo</>
+                )}
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -419,6 +445,10 @@ function SeriesCard({ series, onChanged }: { series: AdminSeries; onChanged: () 
         <input
           ref={coverInputRef} type="file" accept="image/*" className="hidden"
           onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) changeCover(f); }}
+        />
+        <input
+          ref={sponsorLogoRef} type="file" accept="image/*" className="hidden"
+          onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) uploadSponsorLogo(f); }}
         />
         <input
           ref={trailerInputRef} type="file" accept="video/*" className="hidden"
