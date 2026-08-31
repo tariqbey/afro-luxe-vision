@@ -5,25 +5,28 @@ import {
   ChevronLeft, Volume2, VolumeX, Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Series, Episode } from "@/lib/types";
+import { Series, Episode, Product } from "@/lib/types";
 import { usePlatform, SHARES_REQUIRED, SHARE_WINDOW, SHARE_UNLOCK_ENABLED } from "@/contexts/PlatformContext";
 
 /** Meta app "Dopamine" — enables the Messenger send-to-a-friend dialog. */
 const FB_APP_ID = "995651536789114";
 import { PremiumUnlockModal } from "./PremiumUnlockModal";
 import { CommentsSheet } from "./CommentsSheet";
+import { ShoppableCard } from "./ShoppableCard";
 import { toast } from "@/hooks/use-toast";
 
 interface EpisodePlayerProps {
   series: Series;
   episodes: Episode[]; // sorted by episodeNumber
+  /** Shoppable products keyed by episode id — sponsored content only */
+  productsByEpisode?: Record<string, Product[]>;
   initialEpisodeNumber?: number;
   isOpen: boolean;
   onClose: () => void;
 }
 
 export function EpisodePlayer({
-  series, episodes, initialEpisodeNumber = 1, isOpen, onClose,
+  series, episodes, productsByEpisode = {}, initialEpisodeNumber = 1, isOpen, onClose,
 }: EpisodePlayerProps) {
   const { isWatchable, saveProgress, savedIds, toggleSaved, subscribe, demoMode, sharesBySeries, recordShare, referralCode } = usePlatform();
 
@@ -37,6 +40,7 @@ export function EpisodePlayer({
   const [showHeartBurst, setShowHeartBurst] = useState(false);
   const [heartPosition, setHeartPosition] = useState({ x: 0, y: 0 });
   const [progress, setProgress] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
   const [pendingIndex, setPendingIndex] = useState<number | null>(null);
   const [subscribing, setSubscribing] = useState(false);
 
@@ -183,6 +187,7 @@ export function EpisodePlayer({
     const v = videoRef.current;
     if (!v || !v.duration) return;
     setProgress((v.currentTime / v.duration) * 100);
+    setElapsed(v.currentTime);
     // persist resume point every ~5s
     if (Date.now() - lastSavedAt.current > 5000) {
       lastSavedAt.current = Date.now();
@@ -493,6 +498,14 @@ export function EpisodePlayer({
           </span>
         </motion.button>
       </div>
+
+      {/* Shoppable overlay — sponsored episodes only */}
+      <ShoppableCard
+        products={productsByEpisode[currentEpisode.id] ?? []}
+        sponsorName={series.sponsorName}
+        currentTime={elapsed}
+        episodeId={currentEpisode.id}
+      />
 
       {/* Bottom Info */}
       <div className="absolute bottom-0 left-0 right-16 z-30 p-4 pb-8">

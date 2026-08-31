@@ -18,6 +18,20 @@ export interface Series {
   featuredAt: string | null;
   /** Free-to-watch trailer, playable from the hero and series card */
   trailerUrl: string | null;
+  /** Brand name when this series is sponsored; null = normal paid content */
+  sponsorName: string | null;
+}
+
+export interface Product {
+  id: string;
+  seriesId: string;
+  episodeId: string | null;
+  name: string;
+  brand: string | null;
+  price: string | null;
+  imageUrl: string | null;
+  productUrl: string;
+  sortOrder: number;
 }
 
 export interface Episode {

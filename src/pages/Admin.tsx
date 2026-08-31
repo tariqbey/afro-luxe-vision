@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Film, Upload, ImageIcon, Trash2, Eye, EyeOff, Loader2, Star,
-  Clapperboard, ListOrdered, ChevronUp, ChevronDown, ChevronRight,
+  Clapperboard, ListOrdered, ChevronUp, ChevronDown, ChevronRight, ShoppingBag, Plus, Link2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "@/hooks/use-toast";
@@ -18,6 +18,7 @@ interface AdminSeries {
   free_episodes: number;
   featured_at: string | null;
   trailer_url: string | null;
+  sponsor_name: string | null;
   episodeCount: number;
 }
 
@@ -28,13 +29,23 @@ interface AdminEpisode {
   duration_seconds: number | null;
 }
 
+interface AdminProduct {
+  id: string;
+  episode_id: string | null;
+  name: string;
+  price: string | null;
+  image_url: string | null;
+  product_url: string;
+  sort_order: number;
+}
+
 const safeName = (name: string) => name.replace(/[^a-zA-Z0-9._-]/g, "_");
 
 async function fetchAdminSeries(): Promise<AdminSeries[]> {
   if (!supabase) return [];
   const { data, error } = await supabase
     .from("series")
-    .select("id, title, status, channel, cover_url, free_episodes, featured_at, trailer_url, episodes(count)")
+    .select("id, title, status, channel, cover_url, free_episodes, featured_at, trailer_url, sponsor_name, episodes(count)")
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []).map((s) => ({
@@ -86,6 +97,8 @@ function SeriesCard({ series, onChanged }: { series: AdminSeries; onChanged: () 
   const [uploadNote, setUploadNote] = useState("");
   const [free, setFree] = useState(series.free_episodes);
   const [showEpisodes, setShowEpisodes] = useState(false);
+  const [sponsor, setSponsor] = useState(series.sponsor_name ?? "");
+  const [productFor, setProductFor] = useState<AdminEpisode | null>(null);
   const episodesInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
   const trailerInputRef = useRef<HTMLInputElement>(null);
@@ -99,6 +112,20 @@ function SeriesCard({ series, onChanged }: { series: AdminSeries; onChanged: () 
         .select("id, episode_number, title, duration_seconds")
         .eq("series_id", series.id)
         .order("episode_number");
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: showEpisodes,
+  });
+
+  const { data: products } = useQuery({
+    queryKey: ["admin-products", series.id],
+    queryFn: async (): Promise<AdminProduct[]> => {
+      const { data, error } = await supabase!
+        .from("products")
+        .select("id, episode_id, name, price, image_url, product_url, sort_order")
+        .eq("series_id", series.id)
+        .order("sort_order");
       if (error) throw error;
       return data ?? [];
     },
@@ -226,6 +253,42 @@ function SeriesCard({ series, onChanged }: { series: AdminSeries; onChanged: () 
     });
   };
 
+  const saveSponsor = () =>
+    run("Save sponsor", async () => {
+      const value = sponsor.trim() || null;
+      const { error } = await supabase!.from("series").update({ sponsor_name: value }).eq("id", series.id);
+      if (error) throw error;
+      toast({
+        title: value ? `Sponsored by ${value}` : "Sponsorship removed",
+        description: value ? "Shoppable cards will show on episodes with products." : "This series is back to normal paid content.",
+      });
+    });
+
+  const addProduct = (ep: AdminEpisode, name: string, url: string, price: string, imageUrl: string) =>
+    run("Add product", async () => {
+      const existing = (products ?? []).filter((p) => p.episode_id === ep.id).length;
+      const { error } = await supabase!.from("products").insert({
+        series_id: series.id,
+        episode_id: ep.id,
+        name: name.trim(),
+        brand: series.sponsor_name,
+        price: price.trim() || null,
+        image_url: imageUrl.trim() || null,
+        product_url: url.trim(),
+        sort_order: existing,
+      });
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["admin-products", series.id] });
+      toast({ title: "Product linked", description: `${name.trim()} → Episode ${ep.episode_number}` });
+    });
+
+  const removeProduct = (id: string) =>
+    run("Remove product", async () => {
+      const { error } = await supabase!.from("products").delete().eq("id", id);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["admin-products", series.id] });
+    });
+
   const toggleFeatured = () =>
     run(series.featured_at ? "Unfeature" : "Feature", async () => {
       if (!series.featured_at && series.status !== "published") {
@@ -297,6 +360,11 @@ function SeriesCard({ series, onChanged }: { series: AdminSeries; onChanged: () 
             )}>
               {series.status}
             </span>
+            {series.sponsor_name && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-liquid-gold/20 text-liquid-gold flex items-center gap-1">
+                <ShoppingBag className="w-2.5 h-2.5" /> {series.sponsor_name}
+              </span>
+            )}
             {series.featured_at && (
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-electric-violet/20 text-electric-violet flex items-center gap-1">
                 <Star className="w-2.5 h-2.5 fill-current" /> Featured
@@ -317,6 +385,24 @@ function SeriesCard({ series, onChanged }: { series: AdminSeries; onChanged: () 
             />
             {free !== series.free_episodes && (
               <button onClick={savePricing} className="px-2 py-1 rounded-lg bg-electric-violet/20 text-electric-violet text-xs font-medium">
+                Save
+              </button>
+            )}
+          </div>
+
+          {/* Sponsorship */}
+          <div className="flex items-center gap-2 pt-1.5">
+            <label className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
+              <ShoppingBag className="w-3 h-3" /> Sponsor
+            </label>
+            <input
+              value={sponsor}
+              onChange={(e) => setSponsor(e.target.value)}
+              placeholder="none — paid content"
+              className="flex-1 min-w-0 px-2 py-1 rounded-lg bg-deep-space border border-chrome-silver/10 text-chrome-silver text-xs outline-none focus:border-liquid-gold placeholder:text-muted-foreground"
+            />
+            {sponsor.trim() !== (series.sponsor_name ?? "") && (
+              <button onClick={saveSponsor} className="px-2 py-1 rounded-lg bg-liquid-gold/20 text-liquid-gold text-xs font-medium flex-shrink-0">
                 Save
               </button>
             )}
@@ -416,6 +502,18 @@ function SeriesCard({ series, onChanged }: { series: AdminSeries; onChanged: () 
                 </span>
               )}
               <div className="flex items-center gap-0.5 flex-shrink-0">
+                {series.sponsor_name && (
+                  <button
+                    onClick={() => setProductFor(productFor?.id === ep.id ? null : ep)}
+                    className={cn(
+                      "w-7 h-7 rounded-lg flex items-center justify-center hover:bg-obsidian",
+                      (products ?? []).some((p) => p.episode_id === ep.id) ? "text-liquid-gold" : "text-chrome-silver/50"
+                    )}
+                    title="Shoppable products"
+                  >
+                    <ShoppingBag className="w-3.5 h-3.5" />
+                  </button>
+                )}
                 <button
                   onClick={() => moveEpisode(ep, "up")}
                   disabled={i === 0 || !!busy}
@@ -440,6 +538,19 @@ function SeriesCard({ series, onChanged }: { series: AdminSeries; onChanged: () 
               </div>
             </div>
           ))}
+
+          {/* Shoppable products for the selected episode */}
+          {productFor && (
+            <ProductPanel
+              episode={productFor}
+              products={(products ?? []).filter((p) => p.episode_id === productFor.id)}
+              onAdd={(n, u, pr, img) => addProduct(productFor, n, u, pr, img)}
+              onRemove={removeProduct}
+              onClose={() => setProductFor(null)}
+              busy={busy === "Add product" || busy === "Remove product"}
+            />
+          )}
+
           {(episodes?.length ?? 0) > 0 && (
             <p className="text-[10px] text-muted-foreground pt-1 flex items-center gap-1">
               <ChevronRight className="w-3 h-3" />
@@ -448,6 +559,72 @@ function SeriesCard({ series, onChanged }: { series: AdminSeries; onChanged: () 
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function ProductPanel({ episode, products, onAdd, onRemove, onClose, busy }: {
+  episode: AdminEpisode;
+  products: AdminProduct[];
+  onAdd: (name: string, url: string, price: string, imageUrl: string) => void;
+  onRemove: (id: string) => void;
+  onClose: () => void;
+  busy: boolean;
+}) {
+  const [name, setName] = useState("");
+  const [url, setUrl] = useState("");
+  const [price, setPrice] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const canAdd = name.trim() && url.trim().startsWith("http");
+
+  return (
+    <div className="rounded-xl border border-liquid-gold/25 bg-deep-space p-3 space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-bold text-liquid-gold uppercase tracking-wide flex items-center gap-1.5">
+          <ShoppingBag className="w-3.5 h-3.5" />
+          Shop this episode — Ep {episode.episode_number}
+        </span>
+        <button onClick={onClose} className="text-chrome-silver"><ChevronUp className="w-4 h-4" /></button>
+      </div>
+
+      {products.length > 0 && (
+        <div className="space-y-1.5">
+          {products.map((p) => (
+            <div key={p.id} className="flex items-center gap-2 rounded-lg bg-obsidian px-2 py-1.5">
+              {p.image_url && <img src={p.image_url} alt="" className="w-8 h-10 rounded object-cover flex-shrink-0" />}
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-chrome-silver truncate">{p.name}</p>
+                <p className="text-[10px] text-muted-foreground truncate flex items-center gap-1">
+                  <Link2 className="w-2.5 h-2.5" />{p.product_url.replace(/^https?:\/\//, "").slice(0, 38)}…
+                </p>
+              </div>
+              {p.price && <span className="text-[10px] text-liquid-gold flex-shrink-0">{p.price}</span>}
+              <button onClick={() => onRemove(p.id)} disabled={busy} className="text-destructive/70 flex-shrink-0">
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-2">
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Product name"
+          className="col-span-2 px-2.5 py-2 rounded-lg bg-obsidian border border-chrome-silver/10 text-xs text-chrome-silver outline-none focus:border-liquid-gold placeholder:text-muted-foreground" />
+        <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://brand.com/product"
+          className="col-span-2 px-2.5 py-2 rounded-lg bg-obsidian border border-chrome-silver/10 text-xs text-chrome-silver outline-none focus:border-liquid-gold placeholder:text-muted-foreground" />
+        <input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="$49.99"
+          className="px-2.5 py-2 rounded-lg bg-obsidian border border-chrome-silver/10 text-xs text-chrome-silver outline-none focus:border-liquid-gold placeholder:text-muted-foreground" />
+        <input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="Image URL (optional)"
+          className="px-2.5 py-2 rounded-lg bg-obsidian border border-chrome-silver/10 text-xs text-chrome-silver outline-none focus:border-liquid-gold placeholder:text-muted-foreground" />
+      </div>
+
+      <button
+        onClick={() => { onAdd(name, url, price, imageUrl); setName(""); setUrl(""); setPrice(""); setImageUrl(""); }}
+        disabled={!canAdd || busy}
+        className="w-full py-2.5 rounded-lg bg-gradient-gold font-display text-xs text-deep-space uppercase tracking-wide disabled:opacity-40 flex items-center justify-center gap-1.5"
+      >
+        <Plus className="w-3.5 h-3.5" /> Link product
+      </button>
     </div>
   );
 }

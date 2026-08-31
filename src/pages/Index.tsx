@@ -56,6 +56,7 @@ const Index = () => {
 
   const seriesList = catalog?.seriesList ?? [];
   const episodesBySeries = catalog?.episodesBySeries ?? {};
+  const productsByEpisode = catalog?.productsByEpisode ?? {};
 
   // Invite links (/?s=<seriesId>&r=<referralCode>) open the series directly
   // and greet the recipient by who sent it.
@@ -227,6 +228,7 @@ const Index = () => {
           <EpisodePlayer
             series={playingSeries}
             episodes={episodesBySeries[playingSeries.id] ?? []}
+            productsByEpisode={productsByEpisode}
             initialEpisodeNumber={getProgress(playingSeries.id)?.episodeNumber ?? 1}
             isOpen
             onClose={() => setPlayingSeries(null)}
