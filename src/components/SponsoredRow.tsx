@@ -31,12 +31,12 @@ export function SponsoredRow({ series, episodeCounts, onSeriesClick }: Sponsored
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.08 }}
             onClick={() => onSeriesClick(s.id)}
-            className="flex-shrink-0 w-64 rounded-2xl overflow-hidden bg-obsidian border border-liquid-gold/25 text-left"
+            className="flex-shrink-0 w-44 rounded-2xl overflow-hidden bg-obsidian border border-liquid-gold/25 text-left"
             whileTap={{ scale: 0.98 }}
           >
             {/* Sponsor band */}
             <div className="flex items-center justify-between gap-2 px-3 py-2 bg-gradient-to-r from-liquid-gold/15 to-transparent border-b border-liquid-gold/20">
-              <span className="text-[10px] uppercase tracking-wider text-liquid-gold/80 flex-shrink-0">
+              <span className="text-[9px] uppercase tracking-wider text-liquid-gold/80 flex-shrink-0">
                 Presented by
               </span>
               {s.sponsorLogoUrl ? (
@@ -46,16 +46,16 @@ export function SponsoredRow({ series, episodeCounts, onSeriesClick }: Sponsored
                   className="h-4 max-w-[7rem] object-contain"
                 />
               ) : (
-                <span className="font-display text-sm text-pure-white uppercase tracking-wide truncate">
+                <span className="font-display text-xs text-pure-white uppercase tracking-wide truncate">
                   {s.sponsorName}
                 </span>
               )}
             </div>
 
             {/* Cover */}
-            <div className="relative aspect-[16/10] overflow-hidden">
+            <div className="relative aspect-[9/16] overflow-hidden">
               {s.coverUrl && (
-                <img src={s.coverUrl} alt={s.title} className="w-full h-full object-cover object-top" />
+                <img src={s.coverUrl} alt={s.title} className="w-full h-full object-cover" />
               )}
               <div className="absolute inset-0 bg-gradient-to-t from-obsidian via-transparent to-transparent" />
               <div className="absolute bottom-2 right-2 w-9 h-9 rounded-full bg-deep-space/70 backdrop-blur-sm flex items-center justify-center">
@@ -64,11 +64,11 @@ export function SponsoredRow({ series, episodeCounts, onSeriesClick }: Sponsored
             </div>
 
             {/* Title */}
-            <div className="p-3 space-y-1">
-              <h3 className="font-display text-base text-pure-white uppercase leading-tight truncate">
+            <div className="p-2.5 space-y-0.5">
+              <h3 className="font-display text-sm text-pure-white uppercase leading-tight truncate">
                 {s.title}
               </h3>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[11px] text-muted-foreground">
                 {episodeCounts[s.id] ?? 0} episodes · Shop the looks
               </p>
             </div>
