@@ -41,6 +41,7 @@ export function EpisodePlayer({
   const [heartPosition, setHeartPosition] = useState({ x: 0, y: 0 });
   const [progress, setProgress] = useState(0);
   const [elapsed, setElapsed] = useState(0);
+  const [videoDuration, setVideoDuration] = useState(0);
   const [pendingIndex, setPendingIndex] = useState<number | null>(null);
   const [subscribing, setSubscribing] = useState(false);
 
@@ -188,6 +189,7 @@ export function EpisodePlayer({
     if (!v || !v.duration) return;
     setProgress((v.currentTime / v.duration) * 100);
     setElapsed(v.currentTime);
+    if (v.duration && v.duration !== videoDuration) setVideoDuration(v.duration);
     // persist resume point every ~5s
     if (Date.now() - lastSavedAt.current > 5000) {
       lastSavedAt.current = Date.now();
@@ -461,7 +463,7 @@ export function EpisodePlayer({
       </AnimatePresence>
 
       {/* Right Side Engagement Sidebar */}
-      <div className="absolute right-3 bottom-32 z-30 flex flex-col items-center gap-6">
+      <div className="absolute right-3 bottom-24 z-30 flex flex-col items-center gap-5">
         <motion.button
           onClick={() => setIsLiked((prev) => ({ ...prev, [currentEpisode.id]: !videoLiked }))}
           className="flex flex-col items-center gap-1"
@@ -504,6 +506,7 @@ export function EpisodePlayer({
         products={productsByEpisode[currentEpisode.id] ?? []}
         sponsorName={series.sponsorName}
         currentTime={elapsed}
+        duration={videoDuration}
         episodeId={currentEpisode.id}
       />
 

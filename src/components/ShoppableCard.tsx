@@ -9,24 +9,32 @@ interface ShoppableCardProps {
   sponsorName?: string | null;
   /** Seconds into the episode — the rail holds off until REVEAL_AT. */
   currentTime: number;
+  /** Episode length, so the rail can clear out before the ending. */
+  duration?: number;
   /** Reset the reveal when the episode changes. */
   episodeId: string;
 }
 
-const REVEAL_AT = 30; // seconds — let the scene play before selling
+const REVEAL_AT = 30;       // seconds in — let the scene play before selling
+const HIDE_BEFORE_END = 10; // seconds — clear out so the ending lands clean
 
 /**
  * Shoppable rail for sponsored episodes. Sits along the right edge above the
  * engagement buttons, deliberately narrow so the frame stays watchable.
  * Tapping an item opens the brand's page; clicks are logged for the sponsor.
  */
-export function ShoppableCard({ products, sponsorName, currentTime, episodeId }: ShoppableCardProps) {
+export function ShoppableCard({ products, sponsorName, currentTime, duration, episodeId }: ShoppableCardProps) {
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => setDismissed(false), [episodeId]);
 
   if (products.length === 0 || dismissed) return null;
-  const visible = currentTime >= REVEAL_AT;
+
+  // Show only between REVEAL_AT and HIDE_BEFORE_END seconds from the end.
+  // Episodes too short for that window never show the rail at all.
+  const hideAt = duration && duration > 0 ? duration - HIDE_BEFORE_END : Infinity;
+  const visible =
+    hideAt > REVEAL_AT && currentTime >= REVEAL_AT && currentTime < hideAt;
 
   const open = async (p: Product) => {
     if (supabase) {
@@ -64,7 +72,7 @@ export function ShoppableCard({ products, sponsorName, currentTime, episodeId }:
             </div>
 
             {/* Product rail — scrolls if the episode has a lot of looks */}
-            <div className="max-h-[40vh] overflow-y-auto scrollbar-hide px-1.5 pb-1.5 space-y-1.5">
+            <div className="max-h-[36vh] overflow-y-auto scrollbar-hide px-1.5 pb-1.5 space-y-1.5">
               {products.map((p) => (
                 <div
                   key={p.id}
