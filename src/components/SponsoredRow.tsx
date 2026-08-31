@@ -35,20 +35,20 @@ export function SponsoredRow({ series, episodeCounts, onSeriesClick }: Sponsored
             whileTap={{ scale: 0.98 }}
           >
             {/* Sponsor band */}
-            <div className="flex items-center justify-between gap-2 px-3 py-2 bg-gradient-to-r from-liquid-gold/15 to-transparent border-b border-liquid-gold/20">
-              <span className="text-[9px] uppercase tracking-wider text-liquid-gold/80 flex-shrink-0">
+            <div className="px-3 py-2 bg-gradient-to-r from-liquid-gold/15 to-transparent border-b border-liquid-gold/20">
+              <p className="text-[8px] uppercase tracking-[0.18em] text-liquid-gold/70 leading-none">
                 Presented by
-              </span>
+              </p>
               {s.sponsorLogoUrl ? (
                 <img
                   src={s.sponsorLogoUrl}
                   alt={s.sponsorName ?? "Sponsor"}
-                  className="h-4 max-w-[7rem] object-contain"
+                  className="mt-1 h-4 max-w-full object-contain object-left"
                 />
               ) : (
-                <span className="font-display text-xs text-pure-white uppercase tracking-wide truncate">
+                <p className="mt-0.5 font-display text-sm text-pure-white uppercase tracking-wide truncate">
                   {s.sponsorName}
-                </span>
+                </p>
               )}
             </div>
 
