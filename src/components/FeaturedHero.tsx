@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Play, Plus, Check, Clapperboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -36,13 +36,31 @@ const channelColors = {
  */
 export function FeaturedHero({ slides, onWatch, onTrailer, onSave, rotateMs = 7000 }: FeaturedHeroProps) {
   const [index, setIndex] = useState(0);
+  // Once someone starts steering the carousel themselves, stop yanking it out
+  // from under them — the auto-rotate resumes after a spell of no input.
+  const [steering, setSteering] = useState(false);
   const slide = slides[Math.min(index, slides.length - 1)];
 
+  const go = useCallback(
+    (dir: number) => {
+      setIndex((i) => (i + dir + slides.length) % slides.length);
+      setSteering(true);
+    },
+    [slides.length],
+  );
+
   useEffect(() => {
-    if (slides.length < 2) return;
+    if (slides.length < 2 || steering) return;
     const timer = setInterval(() => setIndex((i) => (i + 1) % slides.length), rotateMs);
     return () => clearInterval(timer);
-  }, [slides.length, rotateMs]);
+  }, [slides.length, rotateMs, steering]);
+
+  // Hand control back to the carousel after a pause.
+  useEffect(() => {
+    if (!steering) return;
+    const t = setTimeout(() => setSteering(false), 12000);
+    return () => clearTimeout(t);
+  }, [steering, index]);
 
   useEffect(() => {
     if (index >= slides.length) setIndex(0);
@@ -60,6 +78,18 @@ export function FeaturedHero({ slides, onWatch, onTrailer, onSave, rotateMs = 70
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5 }}
+          // Swipe left/right to browse what's featured instead of waiting out
+          // the rotation. Buttons inside still receive their taps.
+          drag={slides.length > 1 ? "x" : false}
+          dragConstraints={{ left: 0, right: 0 }}
+          dragElastic={0.18}
+          dragDirectionLock
+          onDragEnd={(_, info) => {
+            const far = Math.abs(info.offset.x) > 60;
+            const fast = Math.abs(info.velocity.x) > 350;
+            if (!far && !fast) return;
+            go(info.offset.x < 0 ? 1 : -1);
+          }}
         >
           {/* Mobile: art on top, content below.
               Tablet/desktop: portrait art left (uncropped), content right. */}
@@ -132,7 +162,7 @@ export function FeaturedHero({ slides, onWatch, onTrailer, onSave, rotateMs = 70
           {slides.map((s, i) => (
             <button
               key={s.id}
-              onClick={() => setIndex(i)}
+              onClick={() => { setIndex(i); setSteering(true); }}
               className={`h-1.5 rounded-full transition-all ${
                 i === index ? "bg-pure-white w-5" : "bg-pure-white/40 w-1.5"
               }`}

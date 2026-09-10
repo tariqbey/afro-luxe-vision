@@ -518,8 +518,17 @@ export function EpisodePlayer({
         episodeId={currentEpisode.id}
       />
 
-      {/* Bottom Info */}
-      <div className="absolute bottom-0 left-0 right-16 z-30 p-4 pb-8">
+      {/* Title card. The episode owns the frame — this only appears on a tap,
+          alongside the rest of the controls, then gets out of the way again. */}
+      <AnimatePresence>
+        {showControls && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 12 }}
+            transition={{ duration: 0.2 }}
+            className="absolute bottom-0 left-0 right-16 z-30 p-4 pb-8 pointer-events-none bg-gradient-to-t from-deep-space/80 to-transparent"
+          >
         <div className="space-y-2">
           <span className="font-body font-bold text-pure-white text-base">
             {series.creatorName ?? "Creator"}
@@ -540,7 +549,9 @@ export function EpisodePlayer({
             )}
           </div>
         </div>
-      </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Progress Bar (real playback progress) */}
       <div className="absolute bottom-0 left-0 right-0 z-30 h-1 bg-chrome-silver/20">
