@@ -167,13 +167,16 @@ export function PremiumUnlockModal({
                   </motion.button>
 
                   {/* Per-channel shortcuts */}
-                  <div className="grid grid-cols-5 gap-2">
+                  <div className="grid grid-cols-4 gap-2">
                     {[
-                      { key: "whatsapp", label: "WhatsApp" },
                       { key: "sms", label: "Text" },
-                      { key: "messenger", label: "Messenger" },
+                      { key: "whatsapp", label: "WhatsApp" },
                       { key: "instagram", label: "Instagram" },
-                      { key: "copy", label: "Copy" },
+                      { key: "tiktok", label: "TikTok" },
+                      { key: "x", label: "X" },
+                      { key: "facebook", label: "Facebook" },
+                      { key: "messenger", label: "Messenger" },
+                      { key: "copy", label: "Copy link" },
                     ].map((ch) => (
                       <motion.button
                         key={ch.key}

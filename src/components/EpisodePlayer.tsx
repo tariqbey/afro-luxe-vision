@@ -234,8 +234,14 @@ export function EpisodePlayer({
         messenger: isMobile
           ? `fb-messenger://share?link=${encodeURIComponent(url)}&app_id=${FB_APP_ID}`
           : `https://www.facebook.com/dialog/send?app_id=${FB_APP_ID}&link=${encodeURIComponent(url)}&redirect_uri=${encodeURIComponent(window.location.origin)}`,
-        // Instagram has no share intent on web — copy so they can paste into a DM/story
+        // X and Facebook expose real one-tap composers: the post arrives
+        // pre-written and the viewer just confirms it.
+        x: `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`,
+        facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`,
+        // Instagram and TikTok have no web posting intent for personal
+        // accounts, so the caption goes to the clipboard to paste instead.
         instagram: "",
+        tiktok: "",
       };
       const target = targets[channel];
       if (target) {
@@ -243,12 +249,18 @@ export function EpisodePlayer({
         return true;
       }
       await navigator.clipboard.writeText(msg).catch(() => undefined);
+      const paste: Record<string, string> = {
+        instagram: "Caption copied — paste it into your story or a DM.",
+        tiktok: "Caption copied — paste it into your TikTok post or bio.",
+      };
       toast({
-        title: "Link copied 🔗",
-        description: channel === "instagram"
-          ? "Paste it into your Instagram DM or story."
-          : "Paste it into a text to a friend.",
+        title: "Caption copied 🔗",
+        description: paste[channel] ?? "Paste it into a text to a friend.",
       });
+      // Opening the app right after the copy makes it a two-tap post.
+      if (channel === "instagram" || channel === "tiktok") {
+        window.open(channel === "instagram" ? "https://instagram.com" : "https://tiktok.com", "_blank", "noopener");
+      }
       return true;
     }
 

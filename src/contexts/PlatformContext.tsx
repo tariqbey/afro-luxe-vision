@@ -17,7 +17,7 @@ const LS = {
  * episodes after the free ones. Currently PAUSED — the paywall goes straight
  * to subscribe (or promo code). Flip the flag to bring the tier back.
  */
-export const SHARE_UNLOCK_ENABLED = false;
+export const SHARE_UNLOCK_ENABLED = true;
 export const SHARES_REQUIRED = 5;
 export const SHARE_WINDOW = 5;
 
