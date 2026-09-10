@@ -326,11 +326,12 @@ export function EpisodePlayer({
     ? "Trailer"
     : `Episode ${currentEpisode.episodeNumber}`;
 
+  // No exit animation on purpose: an exit that stalls (backgrounded tab,
+  // throttled rAF) strands this overlay with its <video> still playing.
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
       className="fixed inset-0 z-[70] bg-deep-space"
     >
       {/* On tablets/desktop the vertical video lives in a centered 9:16

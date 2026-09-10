@@ -9,6 +9,7 @@ import { VideoRow } from "@/components/VideoRow";
 import { SponsoredRow } from "@/components/SponsoredRow";
 import { VideoCardProps } from "@/components/VideoCard";
 import { EpisodePlayer } from "@/components/EpisodePlayer";
+import { SeriesTitleScreen } from "@/components/SeriesTitleScreen";
 import { useCatalog } from "@/hooks/useCatalog";
 import { usePlatform } from "@/contexts/PlatformContext";
 import { Series } from "@/lib/types";
@@ -29,6 +30,10 @@ const Index = () => {
   const [activeTab, setActiveTab] = useState("home");
   const [playingSeries, setPlayingSeries] = useState<Series | null>(null);
   const [trailerSeries, setTrailerSeries] = useState<Series | null>(null);
+  /** The show's own screen — where backing out of an episode lands. */
+  const [titleSeries, setTitleSeries] = useState<Series | null>(null);
+  /** Set when the viewer picks an episode by hand, so it beats the resume point. */
+  const [startEpisode, setStartEpisode] = useState<number | null>(null);
 
   // Stripe checkout return
   useEffect(() => {
@@ -161,7 +166,15 @@ const Index = () => {
       navigate("/auth");
       return;
     }
+    setStartEpisode(null);
     setPlayingSeries(s);
+  };
+
+  /** Backing out of an episode lands on the show's title screen, not the feed. */
+  const leaveEpisode = () => {
+    if (playingSeries) setTitleSeries(playingSeries);
+    setPlayingSeries(null);
+    setStartEpisode(null);
   };
 
   return (
@@ -174,6 +187,10 @@ const Index = () => {
       <main className="pb-28">
         {heroSlides.length > 0 ? (
           <FeaturedHero slides={heroSlides} onWatch={openSeries} onTrailer={openTrailer} onSave={toggleSaved} />
+        ) : isLoading ? (
+          // Hold the space rather than flashing "no series" at every visitor
+          // while the catalog is still in flight.
+          <div className="w-full aspect-[3/4] md:aspect-[4/5] lg:h-[62vh] lg:aspect-auto" />
         ) : (
           <FeaturedHero
             slides={[{
@@ -252,19 +269,38 @@ const Index = () => {
         else setActiveTab(tab);
       }} notificationCount={0} />
 
-      <AnimatePresence>
+      {/* Overlays mount and unmount directly — wrapping them in AnimatePresence
+          let a stalled exit leave the player and the title screen on screen at
+          the same time, with the episode still playing underneath. */}
+      <>
+        {titleSeries && !playingSeries && (
+          <SeriesTitleScreen
+            key="title-screen"
+            series={titleSeries}
+            episodes={episodesBySeries[titleSeries.id] ?? []}
+            isOpen
+            onClose={() => setTitleSeries(null)}
+            onPlay={(episodeNumber) => {
+              setStartEpisode(episodeNumber);
+              setPlayingSeries(titleSeries);
+            }}
+            onTrailer={titleSeries.trailerUrl ? () => setTrailerSeries(titleSeries) : undefined}
+          />
+        )}
         {playingSeries && (
           <EpisodePlayer
+            key="episode-player"
             series={playingSeries}
             episodes={episodesBySeries[playingSeries.id] ?? []}
             productsByEpisode={productsByEpisode}
-            initialEpisodeNumber={getProgress(playingSeries.id)?.episodeNumber ?? 1}
+            initialEpisodeNumber={startEpisode ?? getProgress(playingSeries.id)?.episodeNumber ?? 1}
             isOpen
-            onClose={() => setPlayingSeries(null)}
+            onClose={leaveEpisode}
           />
         )}
         {trailerSeries && (
           <EpisodePlayer
+            key="trailer-player"
             series={trailerSeries}
             episodes={[{
               id: `${trailerSeries.id}-trailer`,
@@ -280,7 +316,7 @@ const Index = () => {
             onClose={() => setTrailerSeries(null)}
           />
         )}
-      </AnimatePresence>
+      </>
     </div>
   );
 };

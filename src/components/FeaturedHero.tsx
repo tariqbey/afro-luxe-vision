@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { Play, Plus, Check, Clapperboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -52,12 +52,13 @@ export function FeaturedHero({ slides, onWatch, onTrailer, onSave, rotateMs = 70
 
   return (
     <section className="relative w-full overflow-hidden">
-      <AnimatePresence mode="wait">
+      {/* Keyed remount, not AnimatePresence: `mode="wait"` deadlocks when the
+          slide id changes while the first slide is still animating in — the
+          placeholder never exits and the real hero never appears. */}
         <motion.div
           key={slide.id}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
           transition={{ duration: 0.5 }}
         >
           {/* Mobile: art on top, content below.
@@ -123,7 +124,6 @@ export function FeaturedHero({ slides, onWatch, onTrailer, onSave, rotateMs = 70
           </div>
           </div>
         </motion.div>
-      </AnimatePresence>
 
       {/* Slide dots — on the artwork's right edge, out of the art's way */}
       {slides.length > 1 && (
