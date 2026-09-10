@@ -271,6 +271,12 @@
     padding-bottom: max(env(safe-area-inset-bottom, 0px), 0.5rem);
   }
 
+  /* Sticky rows that need to park directly beneath the top nav, which is
+     4rem tall plus whatever the notch takes. */
+  .top-below-nav {
+    top: calc(max(env(safe-area-inset-top, 0px), 0.75rem) + 4rem);
+  }
+
   /* Background colors using design tokens */
   .bg-deep-space {
     background-color: hsl(var(--deep-space));

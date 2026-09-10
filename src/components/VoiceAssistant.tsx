@@ -2,7 +2,7 @@ import { Component, ReactNode, useCallback, useEffect, useRef, useState } from "
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "react-router-dom";
 import { ConversationProvider, useConversation } from "@elevenlabs/react";
-import { Mic, MicOff, X, Ear, Loader2 } from "lucide-react";
+import { Mic, MicOff, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 
@@ -62,7 +62,6 @@ function VoiceConcierge() {
       return false;
     }
   });
-  const [heard, setHeard] = useState("");
 
   const conversation = useConversation({
     onDisconnect: () => setOpen(false),
@@ -128,7 +127,6 @@ function VoiceConcierge() {
         .map((r) => r[0]?.transcript ?? "")
         .join(" ")
         .toLowerCase();
-      setHeard(said.slice(-40));
       // An episode's own dialogue must not summon the concierge, so ignore the
       // wake word while a video is audibly playing.
       const videoPlaying = Array.from(document.querySelectorAll("video")).some(
@@ -194,30 +192,23 @@ function VoiceConcierge() {
 
   return (
     <>
-      {/* Launcher — sits above the bottom nav, out of the player's way */}
-      <div className="fixed right-4 bottom-24 z-[60] flex flex-col items-end gap-2">
-        {wakeSupported && (
-          <motion.button
-            onClick={toggleWake}
-            whileTap={{ scale: 0.92 }}
-            aria-label={wakeEnabled ? 'Stop listening for "Upscale"' : 'Listen for "Upscale"'}
-            className={cn(
-              "flex items-center gap-1.5 h-8 px-3 rounded-full backdrop-blur-md text-[11px] font-accent font-semibold transition-colors",
-              wakeEnabled
-                ? "bg-liquid-gold/20 text-liquid-gold"
-                : "bg-deep-space/70 text-chrome-silver",
-            )}
-          >
-            <Ear className="w-3.5 h-3.5" />
-            {wakeEnabled ? 'Listening for "Upscale"' : 'Say "Upscale"'}
-          </motion.button>
-        )}
-
+      {/* Launcher. Deliberately small and hugging the corner: cover art is the
+          product here, so the concierge never spreads a label across it.
+          Long-press (or right-click) toggles wake-word listening. */}
+      <div className="fixed right-3 bottom-24 z-[60] flex flex-col items-end gap-2">
         <motion.button
           onClick={active ? endSession : startSession}
+          onContextMenu={(e) => {
+            if (!wakeSupported) return;
+            e.preventDefault();
+            toggleWake();
+          }}
           whileTap={{ scale: 0.9 }}
-          aria-label={active ? "End voice chat" : "Talk to Upscale"}
-          className="relative w-14 h-14 rounded-full bg-gradient-button flex items-center justify-center shadow-lg"
+          aria-label={active ? "End voice chat" : 'Talk to Upscale — long-press to listen for the wake word'}
+          className={cn(
+            "relative w-11 h-11 rounded-full bg-gradient-button flex items-center justify-center shadow-lg",
+            wakeEnabled && "ring-2 ring-liquid-gold/60",
+          )}
         >
           {wakeEnabled && !active && (
             <motion.span
@@ -286,13 +277,6 @@ function VoiceConcierge() {
         )}
       </AnimatePresence>
 
-      {/* What the wake listener thinks it heard — only while idle, for debugging
-          a mishear without opening the console. */}
-      {wakeEnabled && !open && heard && (
-        <p className="fixed right-4 bottom-[8.5rem] z-[60] max-w-[60vw] truncate text-right text-[10px] text-chrome-silver/40">
-          {heard}
-        </p>
-      )}
     </>
   );
 }

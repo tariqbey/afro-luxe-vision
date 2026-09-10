@@ -125,15 +125,16 @@ export function FeaturedHero({ slides, onWatch, onTrailer, onSave, rotateMs = 70
           </div>
         </motion.div>
 
-      {/* Slide dots — on the artwork's right edge, out of the art's way */}
+      {/* Slide dots sit BELOW the poster, never on it — the artwork carries the
+          title treatment and the cast credits, and nothing gets to cover those. */}
       {slides.length > 1 && (
-        <div className="absolute top-24 right-3 z-10 flex flex-col gap-2">
+        <div className="flex justify-center gap-2 pb-3 lg:justify-start lg:px-12">
           {slides.map((s, i) => (
             <button
               key={s.id}
               onClick={() => setIndex(i)}
-              className={`w-1.5 rounded-full transition-all ${
-                i === index ? "bg-pure-white h-5" : "bg-pure-white/40 h-1.5"
+              className={`h-1.5 rounded-full transition-all ${
+                i === index ? "bg-pure-white w-5" : "bg-pure-white/40 w-1.5"
               }`}
               aria-label={`Show ${s.title}`}
             />

@@ -204,7 +204,7 @@ const Index = () => {
           />
         )}
 
-        <div className="sticky top-16 z-40 bg-gradient-to-b from-deep-space via-deep-space to-transparent pt-4 pb-6 px-4">
+        <div className="sticky top-below-nav z-40 bg-gradient-to-b from-deep-space via-deep-space to-transparent pt-4 pb-6 px-4">
           <ChannelSwitcher
             activeChannel={activeChannel}
             onChannelChange={setActiveChannel}
