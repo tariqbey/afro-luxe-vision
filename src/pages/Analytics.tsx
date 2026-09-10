@@ -232,8 +232,8 @@ const Analytics = () => {
               What each title earned
             </h2>
             <p className="font-display text-xl text-liquid-gold">
-              ${totalRevenue.toFixed(2)}
-              <span className="ml-2 font-body text-xs text-chrome-silver/50">over {days} days</span>
+              ${totalRevenue.toFixed(2)}{" "}
+              <span className="ml-1 font-body text-xs text-chrome-silver/50">over {days} days</span>
             </p>
           </div>
           <div className="mt-3 overflow-x-auto">
