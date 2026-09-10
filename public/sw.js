@@ -1,6 +1,6 @@
 // Minimal service worker: satisfies installability and caches the app shell.
 // Video is deliberately NOT cached — episodes are large and range-requested.
-const CACHE = "dopamine-shell-v1";
+const CACHE = "dopamine-shell-v2";
 const SHELL = ["/", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {

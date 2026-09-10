@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { motion, AnimatePresence, useMotionValue, useTransform, PanInfo } from "framer-motion";
 import {
   Heart, MessageCircle, Share2, Bookmark, Play, Pause,
-  ChevronLeft, Volume2, VolumeX, Lock,
+  Volume2, VolumeX, Lock, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Series, Episode, Product } from "@/lib/types";
@@ -422,30 +422,32 @@ export function EpisodePlayer({
         </AnimatePresence>
       </motion.div>
 
-      {/* Always-visible back button */}
-      <div className="absolute top-0 left-0 right-0 z-40 pt-safe">
-        <div className="flex items-center justify-between px-4 h-14">
+      {/* Getting out is never hidden behind the auto-hiding controls, and the
+          close button sits on the RIGHT — the phone's clock lives in the top
+          left and was covering it. 48px target, comfortably tappable. */}
+      <div className="absolute top-0 left-0 right-0 z-40 pt-safe pointer-events-none">
+        <div className="flex items-center justify-end px-3 pt-1">
           <motion.button
             onClick={(e) => { e.stopPropagation(); onClose(); }}
-            className="w-10 h-10 rounded-full bg-deep-space/60 backdrop-blur-md flex items-center justify-center"
+            aria-label="Close player"
+            className="pointer-events-auto w-12 h-12 rounded-full bg-deep-space/70 backdrop-blur-md flex items-center justify-center ring-1 ring-pure-white/10"
             whileTap={{ scale: 0.9 }}
           >
-            <ChevronLeft className="w-6 h-6 text-pure-white" />
+            <X className="w-6 h-6 text-pure-white" />
           </motion.button>
-          <div />
         </div>
       </div>
 
-      {/* Top Controls (mute) */}
+      {/* Mute — secondary, so it takes the left slot and may auto-hide */}
       <AnimatePresence>
         {showControls && (
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="absolute top-0 left-0 right-0 z-30 pt-safe"
+            className="absolute top-0 left-0 right-0 z-30 pt-safe pointer-events-none"
           >
-            <div className="flex items-center justify-end px-4 h-14">
+            <div className="flex items-center justify-start px-3 pt-1">
               <motion.button
                 onClick={() => {
                   setIsMuted((m) => {
@@ -453,7 +455,8 @@ export function EpisodePlayer({
                     return !m;
                   });
                 }}
-                className="w-10 h-10 rounded-full bg-deep-space/40 backdrop-blur-sm flex items-center justify-center"
+                aria-label={isMuted ? "Unmute" : "Mute"}
+                className="pointer-events-auto w-12 h-12 rounded-full bg-deep-space/50 backdrop-blur-sm flex items-center justify-center"
                 whileTap={{ scale: 0.9 }}
               >
                 {isMuted ? (
