@@ -4,7 +4,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Film, Upload, ImageIcon, Trash2, Eye, EyeOff, Loader2, Star,
   Clapperboard, ListOrdered, ChevronUp, ChevronDown, ChevronRight, ShoppingBag, Plus, Link2,
+  BarChart3, Users,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -70,7 +72,21 @@ const Admin = () => {
 
   return (
     <main className="px-4 py-6 pb-24 max-w-3xl mx-auto space-y-4">
-      <h1 className="font-display text-2xl text-pure-white uppercase tracking-tight">Catalog</h1>
+      <div className="flex flex-wrap items-center gap-3">
+        <h1 className="mr-auto font-display text-2xl text-pure-white uppercase tracking-tight">Catalog</h1>
+        <Link
+          to="/admin/analytics"
+          className="flex items-center gap-1.5 rounded-full bg-electric-violet/15 px-3 py-1.5 font-accent text-xs font-semibold text-electric-violet"
+        >
+          <BarChart3 className="w-4 h-4" /> Analytics
+        </Link>
+        <Link
+          to="/admin/team"
+          className="flex items-center gap-1.5 rounded-full bg-pure-white/5 px-3 py-1.5 font-accent text-xs font-semibold text-chrome-silver"
+        >
+          <Users className="w-4 h-4" /> Team
+        </Link>
+      </div>
       <p className="text-sm text-muted-foreground -mt-2">
         Every control here is live. Use <span className="text-electric-violet font-medium">Upload Series</span> (top
         right) to create a new series; manage existing ones below.

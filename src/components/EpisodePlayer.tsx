@@ -14,6 +14,7 @@ import { PremiumUnlockModal } from "./PremiumUnlockModal";
 import { CommentsSheet } from "./CommentsSheet";
 import { ShoppableCard } from "./ShoppableCard";
 import { toast } from "@/hooks/use-toast";
+import { usePlayLog } from "@/hooks/usePlayLog";
 
 interface EpisodePlayerProps {
   series: Series;
@@ -28,7 +29,8 @@ interface EpisodePlayerProps {
 export function EpisodePlayer({
   series, episodes, productsByEpisode = {}, initialEpisodeNumber = 1, isOpen, onClose,
 }: EpisodePlayerProps) {
-  const { isWatchable, saveProgress, savedIds, toggleSaved, subscribe, demoMode, sharesBySeries, recordShare, referralCode } = usePlatform();
+  const { isWatchable, saveProgress, savedIds, toggleSaved, subscribe, demoMode, sharesBySeries, recordShare, referralCode, user } = usePlatform();
+  const { track: trackPlay } = usePlayLog(user?.id ?? null);
 
   const startIdx = Math.max(0, episodes.findIndex((e) => e.episodeNumber === initialEpisodeNumber));
   const [currentIndex, setCurrentIndex] = useState(startIdx === -1 ? 0 : startIdx);
@@ -190,12 +192,14 @@ export function EpisodePlayer({
     setProgress((v.currentTime / v.duration) * 100);
     setElapsed(v.currentTime);
     if (v.duration && v.duration !== videoDuration) setVideoDuration(v.duration);
+    trackPlay(series, currentEpisode, v.currentTime, v.duration);
     // persist resume point every ~5s
     if (Date.now() - lastSavedAt.current > 5000) {
       lastSavedAt.current = Date.now();
       saveProgress(series.id, currentEpisode, v.currentTime);
     }
-  }, [series.id, currentEpisode, saveProgress]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [series, currentEpisode, saveProgress, trackPlay]);
 
   const handleDragEnd = useCallback((_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     const threshold = 80;

@@ -12,9 +12,15 @@ import { toast } from "@/hooks/use-toast";
  * is_admin / is_creator can get past this gate (and RLS enforces the
  * same rule server-side, so the gate is UX — not the security boundary).
  */
-export function AdminGate({ children }: { children: ReactNode }) {
+/**
+ * `allow` names the access levels this route accepts. Analytics admits analysts,
+ * who deliberately have no catalog rights — so the gate can't just ask "is this
+ * an admin?". RLS still enforces the same rule server-side; this is UX.
+ */
+export function AdminGate({ children, allow }: { children: ReactNode; allow?: string[] }) {
   const navigate = useNavigate();
-  const { user, isAdmin, loading, demoMode, signOut } = usePlatform();
+  const { user, isAdmin, accessLevel, loading, demoMode, signOut } = usePlatform();
+  const permitted = allow ? allow.includes(accessLevel) || isAdmin : isAdmin;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -48,7 +54,7 @@ export function AdminGate({ children }: { children: ReactNode }) {
   }
 
   // Signed in as admin → real toolbar + CMS
-  if (user && isAdmin) {
+  if (user && permitted) {
     return (
       <div className="min-h-screen bg-deep-space">
         <div className="sticky top-0 z-50 px-4 py-3 bg-obsidian/95 backdrop-blur-md border-b border-electric-violet/20 flex items-center justify-between">
@@ -82,7 +88,7 @@ export function AdminGate({ children }: { children: ReactNode }) {
   }
 
   // Signed in but not an admin
-  if (user && !isAdmin) {
+  if (user && !permitted) {
     return (
       <Shell onBack={() => navigate("/")}>
         <Lock className="w-10 h-10 text-destructive" />

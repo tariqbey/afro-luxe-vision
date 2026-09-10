@@ -27,6 +27,8 @@ interface PlatformContextValue {
   user: User | null;
   username: string | null;
   isAdmin: boolean;
+  /** owner | admin | editor | analyst | viewer — drives what the admin area shows. */
+  accessLevel: string;
   /** Episodes bought à la carte before the subscription switch — still honored. */
   unlockedIds: Set<string>;
   /** Series in the user's My List. DB-backed when signed in, device-local otherwise. */
@@ -72,6 +74,7 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [username, setUsername] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [accessLevel, setAccessLevel] = useState("viewer");
   const [unlockedIds, setUnlockedIds] = useState<Set<string>>(new Set());
   const [savedIds, setSavedIds] = useState<Set<string>>(() =>
     new Set(readLocal<string[]>(LS.saved, [])),
@@ -157,10 +160,11 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (demoMode || !supabase || !user) return;
-    supabase.from("profiles").select("username, is_admin, is_creator, referral_code").eq("id", user.id).single()
+    supabase.from("profiles").select("username, is_admin, is_creator, referral_code, access_level").eq("id", user.id).single()
       .then(({ data }) => {
         setUsername(data?.username ?? null);
         setIsAdmin(Boolean(data?.is_admin || data?.is_creator));
+        setAccessLevel((data?.access_level as string) ?? "viewer");
         setReferralCode(data?.referral_code ?? null);
       });
     refreshEntitlements();
@@ -285,6 +289,7 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setUsername(null);
     setIsAdmin(false);
+    setAccessLevel("viewer");
     setUnlockedIds(new Set());
     setIsSubscriber(demoMode ? readLocal(LS.subscriber, false) : false);
     setSubscriptionEnd(null);
@@ -294,7 +299,7 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
   return (
     <PlatformContext.Provider
       value={{
-        demoMode, loading, user, username, isAdmin, unlockedIds,
+        demoMode, loading, user, username, isAdmin, accessLevel, unlockedIds,
         savedIds, toggleSaved, isSubscriber, subscriptionEnd, subscribe, manageSubscription, redeemPromo,
         sharesBySeries, recordShare, referralCode, favoriteProductIds, toggleFavoriteProduct,
         isWatchable, refreshEntitlements, saveProgress, getProgress, signOut,
