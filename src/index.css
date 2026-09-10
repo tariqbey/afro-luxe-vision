@@ -257,6 +257,26 @@
 }
 
 @layer utilities {
+  /* Safe-area insets. The viewport is viewport-fit=cover, so the app draws
+     UNDER the phone's status bar and home indicator — without these, anything
+     pinned to the top sits beneath the clock and can't be tapped. These classes
+     were in use across the app but had never actually been defined.
+     The floor keeps the control clear on Androids that report an inset of 0
+     while still overlaying a translucent status bar. */
+  .pt-safe {
+    padding-top: max(env(safe-area-inset-top, 0px), 0.75rem);
+  }
+
+  .pb-safe {
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 0.5rem);
+  }
+
+  /* Sticky rows that need to park directly beneath the top nav, which is
+     4rem tall plus whatever the notch takes. */
+  .top-below-nav {
+    top: calc(max(env(safe-area-inset-top, 0px), 0.75rem) + 4rem);
+  }
+
   /* Background colors using design tokens */
   .bg-deep-space {
     background-color: hsl(var(--deep-space));
