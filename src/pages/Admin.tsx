@@ -7,6 +7,7 @@ import {
   BarChart3, Users,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { AccessCodesPanel } from "@/components/AccessCodesPanel";
 import { supabase } from "@/lib/supabase";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -105,6 +106,8 @@ const Admin = () => {
       {seriesList?.map((s) => (
         <SeriesCard key={s.id} series={s} onChanged={refresh} />
       ))}
+
+      <AccessCodesPanel />
     </main>
   );
 };
