@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { AccessCodesPanel } from "@/components/AccessCodesPanel";
+import { mediaUrl } from "@/lib/media";
 import { supabase } from "@/lib/supabase";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -374,7 +375,7 @@ function SeriesCard({ series, onChanged }: { series: AdminSeries; onChanged: () 
         {/* Cover */}
         <div className="w-20 h-28 rounded-lg overflow-hidden bg-deep-space flex-shrink-0">
           {series.cover_url ? (
-            <img src={series.cover_url} alt={series.title} className="w-full h-full object-cover" />
+            <img src={mediaUrl(series.cover_url)} alt={series.title} className="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
               <ImageIcon className="w-6 h-6 text-muted-foreground" />
@@ -445,7 +446,7 @@ function SeriesCard({ series, onChanged }: { series: AdminSeries; onChanged: () 
                 className="px-2 py-1 rounded-lg border border-chrome-silver/20 text-chrome-silver text-xs flex-shrink-0 flex items-center gap-1"
               >
                 {series.sponsor_logo_url ? (
-                  <img src={series.sponsor_logo_url} alt="" className="h-3 max-w-[3.5rem] object-contain" />
+                  <img src={mediaUrl(series.sponsor_logo_url)} alt="" className="h-3 max-w-[3.5rem] object-contain" />
                 ) : (
                   <><ImageIcon className="w-3 h-3" /> Logo</>
                 )}
@@ -640,7 +641,7 @@ function ProductPanel({ episode, products, onAdd, onRemove, onClose, busy }: {
         <div className="space-y-1.5">
           {products.map((p) => (
             <div key={p.id} className="flex items-center gap-2 rounded-lg bg-obsidian px-2 py-1.5">
-              {p.image_url && <img src={p.image_url} alt="" className="w-8 h-10 rounded object-cover flex-shrink-0" />}
+              {p.image_url && <img src={mediaUrl(p.image_url)} alt="" className="w-8 h-10 rounded object-cover flex-shrink-0" />}
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-chrome-silver truncate">{p.name}</p>
                 <p className="text-[10px] text-muted-foreground truncate flex items-center gap-1">

@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { Series, Episode, Channel, Product } from "@/lib/types";
 import { demoSeries, demoEpisodes } from "@/data/demoSeries";
+import { mediaUrl } from "@/lib/media";
 
 export interface Catalog {
   seriesList: Series[];
@@ -34,7 +35,7 @@ async function fetchCatalog(): Promise<Catalog> {
     id: s.id,
     title: s.title,
     description: s.description,
-    coverUrl: s.cover_url,
+    coverUrl: mediaUrl(s.cover_url),
     channel: s.channel as Channel | null,
     freeEpisodes: s.free_episodes,
     episodePrice: s.episode_price,
@@ -43,9 +44,9 @@ async function fetchCatalog(): Promise<Catalog> {
     status: s.status,
     createdAt: s.created_at,
     featuredAt: s.featured_at ?? null,
-    trailerUrl: s.trailer_url ?? null,
+    trailerUrl: mediaUrl(s.trailer_url ?? null),
     sponsorName: s.sponsor_name ?? null,
-    sponsorLogoUrl: s.sponsor_logo_url ?? null,
+    sponsorLogoUrl: mediaUrl(s.sponsor_logo_url ?? null),
   }));
 
   const episodesBySeries: Record<string, Episode[]> = {};
@@ -55,8 +56,8 @@ async function fetchCatalog(): Promise<Catalog> {
       seriesId: e.series_id,
       episodeNumber: e.episode_number,
       title: e.title,
-      videoUrl: e.video_url,
-      thumbnailUrl: e.thumbnail_url,
+      videoUrl: mediaUrl(e.video_url),
+      thumbnailUrl: mediaUrl(e.thumbnail_url),
       durationSeconds: e.duration_seconds,
     });
   }
@@ -71,7 +72,7 @@ async function fetchCatalog(): Promise<Catalog> {
       name: p.name,
       brand: p.brand,
       price: p.price,
-      imageUrl: p.image_url,
+      imageUrl: mediaUrl(p.image_url),
       productUrl: p.product_url,
       sortOrder: p.sort_order,
     });

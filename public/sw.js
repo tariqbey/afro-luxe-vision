@@ -1,6 +1,6 @@
 // Minimal service worker: satisfies installability and caches the app shell.
 // Video is deliberately NOT cached — episodes are large and range-requested.
-const CACHE = "dopamine-shell-v3";
+const CACHE = "dopamine-shell-v4";
 const SHELL = ["/", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -28,6 +28,10 @@ self.addEventListener("fetch", (event) => {
   if (
     url.origin !== self.location.origin ||
     /\.(mp4|mov|m3u8|webm)$/i.test(url.pathname) ||
+    // media is now proxied same-origin; it must stay out of the shell cache
+    // (range requests, and covers that change behind the same URL)
+    url.pathname.startsWith("/media/") ||
+    url.pathname.startsWith("/api/") ||
     url.pathname.startsWith("/auth")
   ) return;
 

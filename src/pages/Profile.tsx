@@ -15,6 +15,7 @@ import { allVideos } from "@/data/videos";
 import thumb1 from "@/assets/thumb-1.jpg";
 import thumb2 from "@/assets/thumb-2.jpg";
 import thumb3 from "@/assets/thumb-3.jpg";
+import { mediaUrl } from "@/lib/media";
 
 const myVideos = allVideos.slice(0, 6);
 const likedVideos = allVideos.slice(2, 8);
@@ -342,7 +343,7 @@ const Profile = () => {
                 <div key={p.id} className="flex items-center gap-3 rounded-xl bg-deep-space p-2">
                   <button onClick={() => openProduct(p)} className="flex-shrink-0">
                     {p.image_url ? (
-                      <img src={p.image_url} alt={p.name} className="w-12 h-16 rounded-lg object-cover" />
+                      <img src={mediaUrl(p.image_url)} alt={p.name} className="w-12 h-16 rounded-lg object-cover" />
                     ) : (
                       <div className="w-12 h-16 rounded-lg bg-obsidian flex items-center justify-center">
                         <ShoppingBag className="w-4 h-4 text-muted-foreground" />
