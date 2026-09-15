@@ -1,66 +1,210 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { TopNav } from "@/components/TopNav";
 import { BottomNav } from "@/components/BottomNav";
 import { ChannelSwitcher, Channel } from "@/components/ChannelSwitcher";
-import { FeaturedHero } from "@/components/FeaturedHero";
+import { FeaturedHero, FeaturedSlide } from "@/components/FeaturedHero";
 import { VideoRow } from "@/components/VideoRow";
+import { SponsoredRow } from "@/components/SponsoredRow";
 import { VideoCardProps } from "@/components/VideoCard";
-import { CoinPurchaseModal } from "@/components/CoinPurchaseModal";
-import { PremiumUnlockModal } from "@/components/PremiumUnlockModal";
-import { VideoPlayer } from "@/components/VideoPlayer";
+import { EpisodePlayer } from "@/components/EpisodePlayer";
+import { SeriesTitleScreen } from "@/components/SeriesTitleScreen";
+import { useCatalog } from "@/hooks/useCatalog";
+import { usePlatform } from "@/contexts/PlatformContext";
+import { Series } from "@/lib/types";
+import { supabase } from "@/lib/supabase";
+import { toast } from "@/hooks/use-toast";
 
 import heroFeatured from "@/assets/hero-featured.jpg";
-import thumb1 from "@/assets/thumb-1.jpg";
-import thumb2 from "@/assets/thumb-2.jpg";
-import thumb3 from "@/assets/thumb-3.jpg";
-import thumb4 from "@/assets/thumb-4.jpg";
-import thumb5 from "@/assets/thumb-5.jpg";
-import thumb6 from "@/assets/thumb-6.jpg";
 
-import { trendingVideos, continueWatching, newReleases, allVideos, popularCreators } from "@/data/videos";
+const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
 
 const Index = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { data: catalog, isLoading } = useCatalog();
+  const { user, demoMode, isSubscriber, subscribe, refreshEntitlements, getProgress, savedIds, toggleSaved } = usePlatform();
+
   const [activeChannel, setActiveChannel] = useState<Channel>("all");
   const [activeTab, setActiveTab] = useState("home");
-  const [coinBalance, setCoinBalance] = useState(1250);
-  const [showCoinModal, setShowCoinModal] = useState(false);
-  const [showUnlockModal, setShowUnlockModal] = useState(false);
-  const [showVideoPlayer, setShowVideoPlayer] = useState(false);
-  const [playerVideoIndex, setPlayerVideoIndex] = useState(0);
+  const [playingSeries, setPlayingSeries] = useState<Series | null>(null);
+  const [trailerSeries, setTrailerSeries] = useState<Series | null>(null);
+  /** The show's own screen — where backing out of an episode lands. */
+  const [titleSeries, setTitleSeries] = useState<Series | null>(null);
+  /** Set when the viewer picks an episode by hand, so it beats the resume point. */
+  const [startEpisode, setStartEpisode] = useState<number | null>(null);
 
-  const filterByChannel = (videos: VideoCardProps[]) => {
-    if (activeChannel === "all") return videos;
-    return videos.filter((v) => v.channel === activeChannel);
+  // Stripe checkout return
+  useEffect(() => {
+    const sub = searchParams.get("subscription");
+    if (!sub) return;
+    if (sub === "success") {
+      toast({ title: "Welcome to Dopamine Unlimited 👑", description: "Every episode of every series is yours. Enjoy." });
+      refreshEntitlements();
+    } else if (sub === "cancelled") {
+      toast({ title: "Subscription cancelled", description: "No charge was made." });
+    }
+    searchParams.delete("subscription");
+    setSearchParams(searchParams, { replace: true });
+  }, [searchParams, setSearchParams, refreshEntitlements]);
+
+  const handleUnlimitedClick = async () => {
+    if (!user) {
+      navigate("/auth");
+      return;
+    }
+    const result = await subscribe();
+    if (!result.ok) {
+      toast({ title: "Checkout unavailable", description: "Please try again in a moment.", variant: "destructive" });
+    }
   };
 
-  const handleVideoClick = (videoId: string) => {
-    const index = allVideos.findIndex((v) => v.id === videoId);
-    if (index !== -1) {
-      setPlayerVideoIndex(index);
-      setShowVideoPlayer(true);
+  const seriesList = catalog?.seriesList ?? [];
+  const episodesBySeries = catalog?.episodesBySeries ?? {};
+  const productsByEpisode = catalog?.productsByEpisode ?? {};
+
+  // Invite links (/?s=<seriesId>&r=<referralCode>) open the series directly
+  // and greet the recipient by who sent it.
+  useEffect(() => {
+    const sharedId = searchParams.get("s");
+    const ref = searchParams.get("r");
+    if (!sharedId || seriesList.length === 0) return;
+    const s = seriesList.find((x) => x.id === sharedId);
+    if (s) setPlayingSeries(s);
+
+    if (ref && supabase) {
+      // log the visit for the referral tree, and greet by sender name
+      supabase.rpc("log_referral_visit", { p_code: ref, p_series_id: sharedId })
+        .then(() => undefined, () => undefined);
+      supabase.rpc("referrer_name", { p_code: ref }).then(({ data }) => {
+        if (data) {
+          toast({
+            title: `@${data} sent you a show 🎬`,
+            description: `Watch the first ${s?.freeEpisodes ?? 5} episodes of ${s?.title ?? "this series"} free.`,
+          });
+        }
+      }, () => undefined);
     }
+
+    searchParams.delete("s");
+    searchParams.delete("r");
+    setSearchParams(searchParams, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seriesList.length]);
+
+  const toCard = (s: Series): VideoCardProps => ({
+    id: s.id,
+    title: s.title,
+    thumbnail: s.coverUrl ?? "",
+    creator: s.creatorName ?? "Creator",
+    duration: `${episodesBySeries[s.id]?.length ?? 0} eps`,
+    views: "",
+    likes: "",
+    isNew: Date.now() - new Date(s.createdAt).getTime() < TWO_WEEKS_MS,
+    isVerified: true,
+    channel: s.channel ?? undefined,
+  });
+
+  const filterByChannel = (list: Series[]) =>
+    activeChannel === "all" ? list : list.filter((s) => s.channel === activeChannel);
+
+  const sponsoredSeries = useMemo(
+    () => seriesList.filter((s) => s.sponsorName),
+    [seriesList],
+  );
+  const episodeCounts = useMemo(
+    () => Object.fromEntries(seriesList.map((s) => [s.id, episodesBySeries[s.id]?.length ?? 0])),
+    [seriesList, episodesBySeries],
+  );
+
+  const continueWatchingSeries = useMemo(
+    () => seriesList.filter((s) => getProgress(s.id) !== null),
+    [seriesList, getProgress],
+  );
+
+  const newReleases = useMemo(
+    () => [...seriesList].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    ).slice(0, 6),
+    [seriesList],
+  );
+
+  // Admin-featured series drive the hero; fall back to the 3 newest.
+  const heroSlides: FeaturedSlide[] = useMemo(() => {
+    const featured = seriesList
+      .filter((s) => s.featuredAt)
+      .sort((a, b) => new Date(b.featuredAt!).getTime() - new Date(a.featuredAt!).getTime());
+    const pool = featured.length > 0 ? featured : newReleases.slice(0, 3);
+    return pool.map((s) => ({
+      id: s.id,
+      title: s.title,
+      subtitle: `${s.creatorName ?? "Dopamine Original"} · ${episodesBySeries[s.id]?.length ?? 0} episodes`,
+      description: s.description ?? "",
+      backgroundImage: s.coverUrl ?? "",
+      channel: s.channel ?? undefined,
+      hasTrailer: Boolean(s.trailerUrl),
+      saved: savedIds.has(s.id),
+    }));
+  }, [seriesList, newReleases, episodesBySeries, savedIds]);
+
+  const openTrailer = (seriesId: string) => {
+    const s = seriesList.find((x) => x.id === seriesId);
+    if (s?.trailerUrl) setTrailerSeries(s);
+  };
+
+  /** Watching requires an account — that's what carries the shopping list,
+   *  watch progress, and subscription. Trailers stay open as the hook. */
+  const openSeries = (seriesId: string) => {
+    const s = seriesList.find((x) => x.id === seriesId);
+    if (!s) return;
+    if (!demoMode && !user) {
+      toast({
+        title: "Create a free account to watch",
+        description: "It saves your place, your list, and your access.",
+      });
+      navigate("/auth");
+      return;
+    }
+    setStartEpisode(null);
+    setPlayingSeries(s);
+  };
+
+  /** Backing out of an episode lands on the show's title screen, not the feed. */
+  const leaveEpisode = () => {
+    if (playingSeries) setTitleSeries(playingSeries);
+    setPlayingSeries(null);
+    setStartEpisode(null);
   };
 
   return (
     <div className="min-h-screen bg-deep-space grain-overlay">
       <TopNav
-        coinBalance={coinBalance}
-        onCoinsClick={() => setShowCoinModal(true)}
+        isSubscriber={isSubscriber}
+        onUnlimitedClick={handleUnlimitedClick}
       />
 
       <main className="pb-28">
-        <FeaturedHero
-          title="NEON QUEENS"
-          subtitle="A New Era of Power"
-          description="Five women. One city. Unlimited ambition. Watch as they redefine what it means to rule in the digital age."
-          backgroundImage={heroFeatured}
-          channel="afropunk"
-        />
+        {heroSlides.length > 0 ? (
+          <FeaturedHero slides={heroSlides} onWatch={openSeries} onTrailer={openTrailer} onSave={toggleSaved} />
+        ) : isLoading ? (
+          // Hold the space rather than flashing "no series" at every visitor
+          // while the catalog is still in flight.
+          <div className="w-full aspect-[3/4] md:aspect-[4/5] lg:h-[62vh] lg:aspect-auto" />
+        ) : (
+          <FeaturedHero
+            slides={[{
+              id: "placeholder",
+              title: "DOPAMINE",
+              subtitle: "Micro Verticals, Maximum Story",
+              description: "Fresh series are on the way. Check back soon.",
+              backgroundImage: heroFeatured,
+              channel: "afropunk",
+            }]}
+          />
+        )}
 
-        <div className="sticky top-16 z-40 bg-gradient-to-b from-deep-space via-deep-space to-transparent pt-4 pb-6 px-4">
+        <div className="sticky top-below-nav z-40 bg-gradient-to-b from-deep-space via-deep-space to-transparent pt-4 pb-6 px-4">
           <ChannelSwitcher
             activeChannel={activeChannel}
             onChannelChange={setActiveChannel}
@@ -76,60 +220,45 @@ const Index = () => {
             transition={{ duration: 0.3 }}
             className="space-y-8"
           >
-            {activeChannel === "all" && continueWatching.length > 0 && (
-              <VideoRow title="Continue Watching" videos={continueWatching} onVideoClick={handleVideoClick} />
+            {isLoading && (
+              <p className="px-4 text-sm text-muted-foreground">Loading series…</p>
+            )}
+
+            {activeChannel === "all" && continueWatchingSeries.length > 0 && (
+              <VideoRow
+                title="Continue Watching"
+                videos={continueWatchingSeries.map((s) => {
+                  const p = getProgress(s.id);
+                  const epCount = episodesBySeries[s.id]?.length ?? 1;
+                  return {
+                    ...toCard(s),
+                    episode: p?.episodeNumber,
+                    progress: p ? Math.round((p.episodeNumber / epCount) * 100) : undefined,
+                  };
+                })}
+                onVideoClick={openSeries}
+              />
+            )}
+
+            {activeChannel === "all" && sponsoredSeries.length > 0 && (
+              <SponsoredRow
+                series={sponsoredSeries}
+                episodeCounts={episodeCounts}
+                onSeriesClick={openSeries}
+              />
             )}
 
             <VideoRow
               title={activeChannel === "all" ? "Trending Now 🔥" : `Trending in ${activeChannel.toUpperCase()}`}
-              videos={filterByChannel(trendingVideos)}
-              onVideoClick={handleVideoClick}
+              videos={filterByChannel(seriesList).map(toCard)}
+              onVideoClick={openSeries}
             />
 
             <VideoRow
               title="New This Week"
-              videos={filterByChannel(newReleases)}
-              onVideoClick={handleVideoClick}
+              videos={filterByChannel(newReleases).map(toCard)}
+              onVideoClick={openSeries}
             />
-
-            {activeChannel === "afropunk" && (
-              <VideoRow title="AFROPUNK Exclusives" videos={trendingVideos.filter((v) => v.channel === "afropunk")} onVideoClick={handleVideoClick} />
-            )}
-            {activeChannel === "codeblack" && (
-              <VideoRow title="CODEBLACK Originals" videos={trendingVideos.filter((v) => v.channel === "codeblack")} onVideoClick={handleVideoClick} />
-            )}
-            {activeChannel === "lol" && (
-              <VideoRow title="LOL! Best of Comedy" videos={trendingVideos.filter((v) => v.channel === "lol")} onVideoClick={handleVideoClick} />
-            )}
-            {activeChannel === "essence" && (
-              <VideoRow title="ESSENCE Lifestyle" videos={trendingVideos.filter((v) => v.channel === "essence")} onVideoClick={handleVideoClick} />
-            )}
-
-            {activeChannel === "all" && (
-              <section className="px-4 space-y-4">
-                <h2 className="text-section text-pure-white">Popular Creators</h2>
-                <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-2">
-                  {popularCreators.map((creator, index) => (
-                    <motion.div
-                      key={creator.name}
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: index * 0.1 }}
-                      className="flex-shrink-0 flex flex-col items-center gap-2"
-                    >
-                      <div className="relative">
-                        <img src={creator.avatar} alt={creator.name} className="w-20 h-20 rounded-full object-cover ring-2 ring-electric-violet" />
-                        <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-neon-magenta flex items-center justify-center">
-                          <span className="text-[10px] text-pure-white font-bold">+</span>
-                        </div>
-                      </div>
-                      <span className="text-sm font-medium text-chrome-silver text-center w-20 truncate">{creator.name}</span>
-                      <span className="text-xs text-muted-foreground">{creator.followers}</span>
-                    </motion.div>
-                  ))}
-                </div>
-              </section>
-            )}
           </motion.div>
         </AnimatePresence>
       </main>
@@ -138,31 +267,56 @@ const Index = () => {
         if (tab === "profile") navigate("/profile");
         else if (tab === "discover") navigate("/discover");
         else setActiveTab(tab);
-      }} notificationCount={3} />
+      }} notificationCount={0} />
 
-      {/* Modals */}
-      <CoinPurchaseModal isOpen={showCoinModal} onClose={() => setShowCoinModal(false)} currentBalance={coinBalance} />
-      <PremiumUnlockModal
-        isOpen={showUnlockModal}
-        onClose={() => setShowUnlockModal(false)}
-        videoTitle="Operation Freedom"
-        thumbnail={thumb4}
-        coinCost={50}
-        currentBalance={coinBalance}
-        onUnlock={() => { setCoinBalance((b) => b - 50); setShowUnlockModal(false); }}
-        onBuyCoins={() => { setShowUnlockModal(false); setShowCoinModal(true); }}
-      />
-
-      <AnimatePresence>
-        {showVideoPlayer && (
-          <VideoPlayer
-            videos={allVideos}
-            initialIndex={playerVideoIndex}
-            isOpen={showVideoPlayer}
-            onClose={() => setShowVideoPlayer(false)}
+      {/* Overlays mount and unmount directly — wrapping them in AnimatePresence
+          let a stalled exit leave the player and the title screen on screen at
+          the same time, with the episode still playing underneath. */}
+      <>
+        {titleSeries && !playingSeries && (
+          <SeriesTitleScreen
+            key="title-screen"
+            series={titleSeries}
+            episodes={episodesBySeries[titleSeries.id] ?? []}
+            isOpen
+            onClose={() => setTitleSeries(null)}
+            onPlay={(episodeNumber) => {
+              setStartEpisode(episodeNumber);
+              setPlayingSeries(titleSeries);
+            }}
+            onTrailer={titleSeries.trailerUrl ? () => setTrailerSeries(titleSeries) : undefined}
           />
         )}
-      </AnimatePresence>
+        {playingSeries && (
+          <EpisodePlayer
+            key="episode-player"
+            series={playingSeries}
+            episodes={episodesBySeries[playingSeries.id] ?? []}
+            productsByEpisode={productsByEpisode}
+            initialEpisodeNumber={startEpisode ?? getProgress(playingSeries.id)?.episodeNumber ?? 1}
+            isOpen
+            onClose={leaveEpisode}
+          />
+        )}
+        {trailerSeries && (
+          <EpisodePlayer
+            key="trailer-player"
+            series={trailerSeries}
+            episodes={[{
+              id: `${trailerSeries.id}-trailer`,
+              seriesId: trailerSeries.id,
+              episodeNumber: 0,
+              title: "Trailer",
+              videoUrl: trailerSeries.trailerUrl,
+              thumbnailUrl: trailerSeries.coverUrl,
+              durationSeconds: null,
+            }]}
+            initialEpisodeNumber={0}
+            isOpen
+            onClose={() => setTrailerSeries(null)}
+          />
+        )}
+      </>
     </div>
   );
 };

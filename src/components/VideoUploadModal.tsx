@@ -1,6 +1,10 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Upload, Film, Hash, ChevronDown, Check } from "lucide-react";
+import { X, Upload, Film, ChevronRight, Check, Loader2, ImageIcon } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
+import { usePlatform } from "@/contexts/PlatformContext";
+import { toast } from "@/hooks/use-toast";
 
 interface VideoUploadModalProps {
   isOpen: boolean;
@@ -15,48 +19,126 @@ const channels = [
 ];
 
 export function VideoUploadModal({ isOpen, onClose }: VideoUploadModalProps) {
-  const [step, setStep] = useState<"upload" | "details" | "success">("upload");
-  const [selectedChannel, setSelectedChannel] = useState("");
+  const { demoMode, user } = usePlatform();
+  const queryClient = useQueryClient();
+
+  const [step, setStep] = useState<"details" | "uploading" | "success">("details");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [tags, setTags] = useState("");
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  const [selectedChannel, setSelectedChannel] = useState("");
+  const [freeEpisodes, setFreeEpisodes] = useState(5);
+  const [videoFiles, setVideoFiles] = useState<File[]>([]);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [uploadedCount, setUploadedCount] = useState(0);
 
-  const handleFileSelect = () => {
-    // Simulate upload
-    setUploading(true);
-    setUploadProgress(0);
-    const interval = setInterval(() => {
-      setUploadProgress((p) => {
-        if (p >= 100) {
-          clearInterval(interval);
-          setUploading(false);
-          setStep("details");
-          return 100;
-        }
-        return p + 8;
+  const videoInputRef = useRef<HTMLInputElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
+
+  const reset = () => {
+    setStep("details");
+    setTitle("");
+    setDescription("");
+    setSelectedChannel("");
+    setVideoFiles([]);
+    setCoverFile(null);
+    setUploadedCount(0);
+  };
+
+  const resetAndClose = () => { reset(); onClose(); };
+
+  // storage keys choke on chars like # ? % — keep names boring
+  const safeName = (name: string) => name.replace(/[^a-zA-Z0-9._-]/g, "_");
+
+  const canSaveDraft = Boolean(title.trim() && selectedChannel);
+  const canPublish = canSaveDraft && videoFiles.length > 0;
+  const missing = [
+    !title.trim() && "a title",
+    !selectedChannel && "a channel",
+    videoFiles.length === 0 && "episode videos",
+  ].filter(Boolean).join(", ");
+
+  const save = async (publish: boolean) => {
+    if (publish ? !canPublish : !canSaveDraft) return;
+    if (demoMode || !supabase || !user) {
+      toast({
+        title: demoMode ? "Demo mode" : "Sign in required",
+        description: demoMode
+          ? "Connect Supabase (see SETUP.md) to publish real series."
+          : "Sign in to publish your series.",
       });
-    }, 150);
-  };
+      return;
+    }
 
-  const handlePublish = () => {
-    setStep("success");
-    setTimeout(() => {
-      setStep("upload");
-      setTitle("");
-      setDescription("");
-      setTags("");
-      setSelectedChannel("");
-      onClose();
-    }, 2000);
-  };
+    setStep("uploading");
+    try {
+      // 1. Create the series (draft until all episodes land)
+      const { data: series, error: sErr } = await supabase
+        .from("series")
+        .insert({
+          creator_id: user.id,
+          title: title.trim(),
+          description: description.trim() || null,
+          channel: selectedChannel,
+          free_episodes: freeEpisodes,
+          status: "draft",
+        })
+        .select()
+        .single();
+      if (sErr) throw sErr;
 
-  const resetAndClose = () => {
-    setStep("upload");
-    setUploadProgress(0);
-    setUploading(false);
-    onClose();
+      // 2. Cover image
+      let coverUrl: string | null = null;
+      if (coverFile) {
+        const path = `${series.id}/cover-${safeName(coverFile.name)}`;
+        const { error } = await supabase.storage.from("covers").upload(path, coverFile);
+        if (error) throw error;
+        coverUrl = supabase.storage.from("covers").getPublicUrl(path).data.publicUrl;
+      }
+
+      // 3. Episodes, in selection order
+      for (let i = 0; i < videoFiles.length; i++) {
+        const file = videoFiles[i];
+        const path = `${series.id}/ep-${i + 1}-${safeName(file.name)}`;
+        const { error: upErr } = await supabase.storage.from("videos").upload(path, file);
+        if (upErr) throw upErr;
+        const videoUrl = supabase.storage.from("videos").getPublicUrl(path).data.publicUrl;
+
+        const { error: epErr } = await supabase.from("episodes").insert({
+          series_id: series.id,
+          episode_number: i + 1,
+          title: `Episode ${i + 1}`,
+          video_url: videoUrl,
+          thumbnail_url: coverUrl,
+          status: "ready",
+        });
+        if (epErr) throw epErr;
+        setUploadedCount(i + 1);
+      }
+
+      // 4. Save cover; publish only when episodes exist
+      const { error: pubErr } = await supabase
+        .from("series")
+        .update({ cover_url: coverUrl, status: publish ? "published" : "draft" })
+        .eq("id", series.id);
+      if (pubErr) throw pubErr;
+
+      queryClient.invalidateQueries({ queryKey: ["catalog"] });
+      if (publish) {
+        setStep("success");
+        setTimeout(resetAndClose, 2000);
+      } else {
+        toast({ title: "Draft saved", description: `"${title.trim()}" is saved with its cover art. Add episodes and publish when you're ready.` });
+        resetAndClose();
+      }
+    } catch (err) {
+      console.error(err);
+      toast({
+        title: "Upload failed",
+        description: err instanceof Error ? err.message : "Something went wrong. Try again.",
+        variant: "destructive",
+      });
+      setStep("details");
+    }
   };
 
   return (
@@ -68,60 +150,62 @@ export function VideoUploadModal({ isOpen, onClose }: VideoUploadModalProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-deep-space/80 backdrop-blur-sm z-[60]"
-            onClick={resetAndClose}
+            onClick={step === "uploading" ? undefined : resetAndClose}
           />
           <motion.div
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="fixed inset-x-0 bottom-0 z-[60] rounded-t-3xl bg-obsidian border-t border-chrome-silver/10 max-h-[90vh] overflow-y-auto"
+            className="fixed inset-x-0 bottom-0 z-[60] rounded-t-3xl bg-obsidian border-t border-chrome-silver/10 max-h-[90vh] overflow-y-auto md:max-w-xl md:mx-auto md:bottom-8 md:rounded-3xl md:border"
           >
-            {/* Drag handle */}
             <div className="flex justify-center pt-3 pb-2">
               <div className="w-10 h-1 rounded-full bg-chrome-silver/30" />
             </div>
 
-            {/* Header */}
             <div className="flex items-center justify-between px-6 pb-4">
               <h2 className="font-display text-xl text-pure-white">
-                {step === "upload" ? "Upload Video" : step === "details" ? "Video Details" : "Published!"}
+                {step === "details" ? "New Series" : step === "uploading" ? "Publishing..." : "Published!"}
               </h2>
-              <button onClick={resetAndClose}>
-                <X className="w-6 h-6 text-chrome-silver" />
-              </button>
+              {step !== "uploading" && (
+                <button onClick={resetAndClose}>
+                  <X className="w-6 h-6 text-chrome-silver" />
+                </button>
+              )}
             </div>
 
             <div className="px-6 pb-8">
-              {step === "upload" && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-                  {/* Upload Zone */}
+              {step === "details" && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-5">
+                  {demoMode && (
+                    <div className="rounded-xl border border-liquid-gold/30 bg-liquid-gold/5 p-3 text-xs text-liquid-gold">
+                      Demo mode — uploads publish for real once Supabase is connected (SETUP.md).
+                    </div>
+                  )}
+
+                  {/* Episode files */}
+                  <input
+                    ref={videoInputRef}
+                    type="file"
+                    accept="video/mp4,video/quicktime,video/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => setVideoFiles(Array.from(e.target.files ?? []))}
+                  />
                   <motion.button
-                    onClick={handleFileSelect}
+                    onClick={() => videoInputRef.current?.click()}
                     className="w-full aspect-video rounded-2xl border-2 border-dashed border-chrome-silver/20 flex flex-col items-center justify-center gap-4 hover:border-electric-violet transition-colors"
                     whileTap={{ scale: 0.98 }}
-                    disabled={uploading}
                   >
-                    {uploading ? (
-                      <div className="flex flex-col items-center gap-3">
-                        <div className="relative w-20 h-20">
-                          <svg className="w-20 h-20 -rotate-90" viewBox="0 0 80 80">
-                            <circle cx="40" cy="40" r="36" className="stroke-chrome-silver/10" strokeWidth="4" fill="none" />
-                            <circle
-                              cx="40" cy="40" r="36"
-                              className="stroke-neon-magenta"
-                              strokeWidth="4"
-                              fill="none"
-                              strokeDasharray={226}
-                              strokeDashoffset={226 - (226 * uploadProgress) / 100}
-                              strokeLinecap="round"
-                            />
-                          </svg>
-                          <span className="absolute inset-0 flex items-center justify-center font-accent font-bold text-pure-white">
-                            {uploadProgress}%
-                          </span>
-                        </div>
-                        <p className="text-sm text-chrome-silver">Uploading...</p>
+                    {videoFiles.length > 0 ? (
+                      <div className="text-center">
+                        <Film className="w-10 h-10 text-electric-violet mx-auto mb-2" />
+                        <p className="font-body font-semibold text-chrome-silver">
+                          {videoFiles.length} episode{videoFiles.length > 1 ? "s" : ""} selected
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Order follows your selection — Episode 1 first
+                        </p>
                       </div>
                     ) : (
                       <>
@@ -129,45 +213,50 @@ export function VideoUploadModal({ isOpen, onClose }: VideoUploadModalProps) {
                           <Upload className="w-7 h-7 text-electric-violet" />
                         </div>
                         <div className="text-center">
-                          <p className="font-body font-semibold text-chrome-silver">Tap to select video</p>
-                          <p className="text-xs text-muted-foreground mt-1">MP4, MOV, up to 500MB</p>
+                          <p className="font-body font-semibold text-chrome-silver">Select episode videos</p>
+                          <p className="text-xs text-muted-foreground mt-1">Vertical MP4/MOV · multi-select in order</p>
                         </div>
                       </>
                     )}
                   </motion.button>
 
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 h-px bg-chrome-silver/10" />
-                    <span className="text-xs text-muted-foreground">or</span>
-                    <div className="flex-1 h-px bg-chrome-silver/10" />
-                  </div>
-
-                  <motion.button
-                    onClick={handleFileSelect}
-                    className="w-full py-3 rounded-xl bg-deep-space border border-chrome-silver/10 font-body font-medium text-sm text-chrome-silver flex items-center justify-center gap-2"
-                    whileTap={{ scale: 0.97 }}
+                  {/* Cover */}
+                  <input
+                    ref={coverInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => setCoverFile(e.target.files?.[0] ?? null)}
+                  />
+                  <button
+                    onClick={() => coverInputRef.current?.click()}
+                    className="w-full rounded-xl bg-deep-space border border-chrome-silver/10 font-body font-medium text-sm text-chrome-silver flex items-center justify-center gap-3 overflow-hidden"
                   >
-                    <Film className="w-4 h-4" /> Record from Camera
-                  </motion.button>
-                </motion.div>
-              )}
-
-              {step === "details" && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-5">
-                  {/* Video preview placeholder */}
-                  <div className="w-full aspect-video rounded-xl bg-deep-space flex items-center justify-center">
-                    <div className="text-center">
-                      <Film className="w-10 h-10 text-electric-violet mx-auto mb-2" />
-                      <p className="text-xs text-muted-foreground">Video uploaded ✓</p>
-                    </div>
-                  </div>
+                    {coverFile ? (
+                      <div className="flex items-center gap-3 w-full p-2">
+                        <img
+                          src={URL.createObjectURL(coverFile)}
+                          alt="Cover preview"
+                          className="w-14 h-20 rounded-lg object-cover flex-shrink-0"
+                        />
+                        <div className="text-left flex-1 min-w-0">
+                          <p className="text-chrome-silver truncate">{coverFile.name}</p>
+                          <p className="text-xs text-liquid-gold">Cover selected — tap to change</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="flex items-center gap-2 py-3">
+                        <ImageIcon className="w-4 h-4" /> Add cover image
+                      </span>
+                    )}
+                  </button>
 
                   <div>
-                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 block">Title</label>
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 block">Series Title</label>
                     <input
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
-                      placeholder="Give your video a title..."
+                      placeholder="Name your series..."
                       className="w-full px-4 py-3 rounded-xl bg-deep-space border border-chrome-silver/10 text-chrome-silver font-body text-sm focus:border-electric-violet outline-none transition-colors placeholder:text-muted-foreground"
                     />
                   </div>
@@ -177,23 +266,22 @@ export function VideoUploadModal({ isOpen, onClose }: VideoUploadModalProps) {
                     <textarea
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
-                      placeholder="What's this video about?"
+                      placeholder="What's this series about?"
                       rows={3}
                       className="w-full px-4 py-3 rounded-xl bg-deep-space border border-chrome-silver/10 text-chrome-silver font-body text-sm focus:border-electric-violet outline-none transition-colors resize-none placeholder:text-muted-foreground"
                     />
                   </div>
 
                   <div>
-                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 block">Tags</label>
-                    <div className="relative">
-                      <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <input
-                        value={tags}
-                        onChange={(e) => setTags(e.target.value)}
-                        placeholder="drama, culture, series..."
-                        className="w-full pl-9 pr-4 py-3 rounded-xl bg-deep-space border border-chrome-silver/10 text-chrome-silver font-body text-sm focus:border-electric-violet outline-none transition-colors placeholder:text-muted-foreground"
-                      />
-                    </div>
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 block">Free Preview Episodes</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={freeEpisodes}
+                      onChange={(e) => setFreeEpisodes(Math.max(0, parseInt(e.target.value) || 0))}
+                      className="w-full px-4 py-3 rounded-xl bg-deep-space border border-chrome-silver/10 text-chrome-silver font-body text-sm focus:border-electric-violet outline-none"
+                    />
+                    <p className="mt-1.5 text-[11px] text-muted-foreground">Episodes after these need a Dopamine Unlimited subscription.</p>
                   </div>
 
                   <div>
@@ -217,14 +305,43 @@ export function VideoUploadModal({ isOpen, onClose }: VideoUploadModalProps) {
                     </div>
                   </div>
 
-                  <motion.button
-                    onClick={handlePublish}
-                    disabled={!title || !selectedChannel}
-                    className="w-full py-3.5 rounded-xl bg-gradient-button font-body font-bold text-pure-white disabled:opacity-40 disabled:cursor-not-allowed"
-                    whileTap={{ scale: 0.97 }}
-                  >
-                    Publish Video 🚀
-                  </motion.button>
+                  <div className="space-y-2">
+                    <motion.button
+                      onClick={() => save(true)}
+                      disabled={!canPublish}
+                      className="w-full py-3.5 rounded-xl bg-gradient-button font-body font-bold text-pure-white disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      whileTap={{ scale: 0.97 }}
+                    >
+                      Publish Series <ChevronRight className="w-4 h-4" />
+                    </motion.button>
+                    <motion.button
+                      onClick={() => save(false)}
+                      disabled={!canSaveDraft}
+                      className="w-full py-3 rounded-xl bg-deep-space border border-chrome-silver/15 font-body font-medium text-sm text-chrome-silver disabled:opacity-40 disabled:cursor-not-allowed"
+                      whileTap={{ scale: 0.97 }}
+                    >
+                      Save as Draft (no episodes yet)
+                    </motion.button>
+                    {!canPublish && (
+                      <p className="text-center text-xs text-muted-foreground">
+                        To publish, add {missing}.
+                      </p>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+
+              {step === "uploading" && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex flex-col items-center justify-center py-12 gap-4"
+                >
+                  <Loader2 className="w-12 h-12 text-electric-violet animate-spin" />
+                  <p className="font-body text-chrome-silver">
+                    Uploading episode {Math.min(uploadedCount + 1, videoFiles.length)} of {videoFiles.length}...
+                  </p>
+                  <p className="text-xs text-muted-foreground">Keep this open until it finishes</p>
                 </motion.div>
               )}
 
@@ -243,7 +360,7 @@ export function VideoUploadModal({ isOpen, onClose }: VideoUploadModalProps) {
                     <Check className="w-10 h-10 text-pure-white" />
                   </motion.div>
                   <h3 className="font-display text-2xl text-pure-white">Published!</h3>
-                  <p className="text-sm text-chrome-silver/70 text-center">Your video is now live on Dopamine</p>
+                  <p className="text-sm text-chrome-silver/70 text-center">Your series is now live on Dopamine</p>
                 </motion.div>
               )}
             </div>
